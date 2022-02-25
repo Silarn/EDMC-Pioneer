@@ -157,7 +157,6 @@ def get_body_value(k, mass, isFirstDicoverer, isFirstMapper):
         Thank you, MattG! :)
     """
     q = 0.56591828
-    efficiencyBonus = 1.25
     # deviation from original: we want to know what the body would yield *if*
     # we would map it, so we skip the "isMapped" check
     if isFirstDicoverer and isFirstMapper:
@@ -174,8 +173,6 @@ def get_body_value(k, mass, isFirstDicoverer, isFirstMapper):
 
     if this.odyssey:
         mapped_value += (mapped_value * 0.3) if ((mapped_value * 0.3) > 555) else 555
-
-    mapped_value *= efficiencyBonus
 
     value = max(500, value)
     mapped_value = max(500, mapped_value)
@@ -195,18 +192,13 @@ def calc_system_value():
             value_sum += v[1]
         else:
             value_sum += v[0]
-        logger.debug('total: {}'.format(value_sum))
         if this.honked:
             value_sum += v[2]
-        logger.debug('total: {}'.format(value_sum))
         if this.fully_scanned:
             value_sum += 1000
-        logger.debug('total: {}'.format(value_sum))
     if this.fully_scanned and this.planet_count == this.map_count:
         value_sum += this.planet_count * 10000
-    logger.debug('total: {}'.format(value_sum))
     value_sum += this.main_star
-    logger.debug('total: {}'.format(value_sum))
     this.total_value = value_sum
 
 
@@ -352,6 +344,10 @@ def journal_entry(cmdr, is_beta, system, station, entry, state):
         update_display()
 
     elif entry['event'] == 'SAAScanComplete':
+        efficiency_bonus = 1.25
+        target = entry['EfficiencyTarget']
+        used = entry['ProbesUsed']
+        was_efficient = True if target >= used else False
         this.map_count += 1
         bodyname = entry['BodyName']
         if bodyname.startswith(this.starsystem + ' '):
@@ -362,12 +358,11 @@ def journal_entry(cmdr, is_beta, system, station, entry, state):
         print('Hiding', bodyname_insystem)
         if bodyname_insystem in this.bodies:
             # body exists, only replace its value with a "hidden" marker
-            body = this.bodies.get(bodyname_insystem)
-            body = list(body)
-            body[4] = True
+            map_val = this.bodies[bodyname_insystem][1]
+            final_val = map_val * efficiency_bonus if was_efficient else map_val
             this.bodies[bodyname_insystem] = (
                 this.bodies[bodyname_insystem][0],
-                this.bodies[bodyname_insystem][1],
+                final_val,
                 this.bodies[bodyname_insystem][2],
                 this.bodies[bodyname_insystem][3],
                 True)
@@ -381,6 +376,8 @@ def journal_entry(cmdr, is_beta, system, station, entry, state):
             was_mapped = bool(entry['WasMapped'])
             k = get_planetclass_k(planetclass, terraformable)
             value, mapped_value, honk_value = get_body_value(k, mass, not was_discovered, not was_mapped)
+            if was_efficient:
+                mapped_value *= efficiency_bonus
             this.bodies[bodyname_insystem] = (value, mapped_value, honk_value, distancels, True)
             this.planet_count += 1
 
@@ -400,6 +397,7 @@ def journal_entry(cmdr, is_beta, system, station, entry, state):
 
 
 def update_display():
+    efficiency_bonus = 1.25
     valuable_body_names = [
         k
         for k, v
@@ -414,12 +412,12 @@ def update_display():
             #   key 5: display
             key=lambda item: item[1][3]
         )
-        if v[1] >= this.minvalue and not v[4]
+        if v[1] * efficiency_bonus >= this.minvalue and not v[4]
     ]
 
     def format_body(body_name):
         # template: NAME (VALUE, DIST), …
-        body_value = this.bodies[body_name][1]
+        body_value = this.bodies[body_name][1] * efficiency_bonus
         body_distance = this.bodies[body_name][3]
         if body_value >= this.minvalue:
             return '%s (%s, %s)' % \
