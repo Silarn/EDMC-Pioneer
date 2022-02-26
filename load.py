@@ -16,10 +16,12 @@ try:
     # Python 2
     from urllib2 import quote
     import Tkinter as tk
+    from Tkinter import ttk
 except ModuleNotFoundError:
     # Python 3
     from urllib.parse import quote
     import tkinter as tk
+    from tkinter import ttk
 
 from ttkHyperlinkLabel import HyperlinkLabel
 import myNotebook as nb
@@ -29,6 +31,7 @@ if __debug__:
 
 from config import config
 from l10n import Locale
+from theme import theme
 
 import traceback
 from EDMCLogging import get_main_logger
@@ -38,12 +41,17 @@ logger = get_main_logger()
 VERSION = '0.8'
 
 this = sys.modules[__name__]  # For holding module globals
+this.frame = None
+this.scroll_canvas = None
+this.scrollable_frame = None
 this.label = None
+this.values_label = None
+this.total_label = None
 this.bodies = {}
 this.odyssey = False
-this.minvalue = 0
-this.total_value = 0
+this.minvalue = None
 this.planet_count = 0
+this.body_count = 0
 this.map_count = 0
 this.main_star = 0
 this.honked = False
@@ -54,6 +62,7 @@ this.starsystem = ''
 this.settings = None
 this.edsm_setting = None
 
+
 def plugin_start3(plugin_dir):
     return plugin_start()
 
@@ -63,43 +72,49 @@ def plugin_start():
     return 'EconomicalCartographics'
 
 
-def plugin_app(parent):
-    # Create and display widgets
-    config.set('ec_minvalue', 300000)
-    this.minvalue = config.getint('ec_minvalue')
-    this.label = tk.Label(parent)
+def plugin_app(parent: tk.Frame):
+    this.minvalue = tk.IntVar(value=config.get_int(key='ec_minvalue', default=400000))
+    this.frame = tk.Frame(parent)
+    this.label = tk.Label(this.frame)
+    this.label.grid(row=0, column=0, sticky=tk.N)
+    this.scroll_canvas = tk.Canvas(this.frame, height=100, highlightthickness=0)
+    scrollbar = ttk.Scrollbar(this.frame, orient="vertical", command=this.scroll_canvas.yview)
+    this.scrollable_frame = ttk.Frame(this.scroll_canvas)
+    this.scrollable_frame.bind(
+        "<Configure>",
+        lambda e: this.scroll_canvas.configure(
+            scrollregion=this.scroll_canvas.bbox("all")
+        )
+    )
+    this.scroll_canvas.bind_all("<MouseWheel>", on_mousewheel)
+    scroll_window = this.scroll_canvas.create_window((0, 0), window=this.scrollable_frame, anchor="nw")
+    this.scroll_canvas.configure(yscrollcommand=scrollbar.set)
+    this.values_label = ttk.Label(this.scrollable_frame)
+    this.values_label.pack()
+    parent.bind(
+        "<Configure>",
+        lambda e: this.values_label.configure(width=parent.winfo_width())
+    )
+    this.scroll_canvas.grid(row=1, column=0, sticky=tk.EW)
+    this.scroll_canvas.grid_rowconfigure(1, weight=0)
+    scrollbar.grid(row=1, column=1, sticky=tk.NSEW)
+    this.total_label = tk.Label(this.frame)
+    this.total_label.grid(row=2, column=0, sticky=tk.N)
     update_display()
-    return this.label
+    theme.register(this.values_label)
+    return this.frame
 
 
 def plugin_prefs(parent, cmdr, is_beta):
     frame = nb.Frame(parent)
-    nb.Label(frame, text='Display:').grid(row=0, padx=10, pady=(10, 0), sticky=tk.W)
-
-    setting = 0
-    this.settings = []
-
-    nb.Label(frame, text='Elite Dangerous Star Map:').grid(padx=10, pady=(10, 0), sticky=tk.W)
-    this.edsm_setting = tk.IntVar(value=(setting) and 1)
-    nb.Checkbutton(frame, text='Look up system in EDSM database', variable=this.edsm_setting).grid(padx=10, pady=2,
-                                                                                                   sticky=tk.W)
-
-    nb.Label(frame, text='Version %s' % VERSION).grid(padx=10, pady=10, sticky=tk.W)
-
+    nb.Label(frame, text='Minimum Value:').grid(row=0, column=0, sticky=tk.W)
+    nb.Entry(frame, textvariable=this.minvalue).grid(row=0, column=1, columnspan=2, sticky=tk.W)
     return frame
 
 
 def prefs_changed(cmdr, is_beta):
-    row = 1
-    setting = 0
-    for var in this.settings:
-        setting += var.get() and row
-        row *= 2
-
-    setting += this.edsm_setting.get()
-    config.set('habzone', setting)
-    this.settings = None
-    this.edsm_setting = None
+    config.set('ec_minvalue', this.minvalue.get())
+    update_display()
 
 
 def get_starclass_k(starclass):
@@ -186,20 +201,45 @@ def get_body_value(k, mass, isFirstDicoverer, isFirstMapper):
 
 
 def calc_system_value():
+    max_value = 0
     value_sum = 0
-    for k, v in this.bodies.items():
-        if v[4]:
+    honk_sum = 0
+    efficiency_bonus = 1.25
+    value_sum += this.main_star
+    max_value += this.main_star
+    bodies_text = ""
+    for k, v in sorted(this.bodies.items(), key=lambda item: item[1][3]):
+        bodies_text += "{}:".format(k) + "\n"
+        if v[4] is True:
+            bodies_text += "Current Value: {}\nMax Value: {}".format(format_credits(v[1]), format_credits(v[1])) + "\n"
+            max_value += v[1]
             value_sum += v[1]
         else:
+            bodies_text += "Current Value: {}\nMax Value: {}".format(format_credits(v[0]), format_credits(int(v[1] * efficiency_bonus))) + "\n"
+            max_value += int(v[1] * efficiency_bonus)
             value_sum += v[0]
         if this.honked:
+            bodies_text += "Honk Value: {}".format(format_credits(v[2])) + "\n"
             value_sum += v[2]
-        if this.fully_scanned:
-            value_sum += 1000
+            honk_sum += v[2]
+        max_value += v[2]
+        bodies_text += "------------------" + "\n"
+    this.values_label["text"] = "{} (Main star): {} + {} = {}".format(
+        this.starsystem,
+        format_credits(this.main_star),
+        format_credits(honk_sum),
+        format_credits(this.main_star + honk_sum)) + "\n"
+    this.values_label["text"] += bodies_text
+    this.values_label["text"] += "------------------" + "\n"
+    if this.fully_scanned:
+        this.values_label["text"] += "Fully Scanned Bonus: {}".format(format_credits(this.body_count * 1000)) + "\n"
+        value_sum += this.body_count * 1000
+    max_value += this.body_count * 1000
     if this.fully_scanned and this.planet_count == this.map_count:
+        this.values_label["text"] += "Fully Mapped Bonus: {}".format(format_credits(this.planet_count * 10000)) + "\n"
         value_sum += this.planet_count * 10000
-    value_sum += this.main_star
-    this.total_value = value_sum
+    max_value += this.planet_count * 10000
+    return value_sum, max_value
 
 
 def format_unit(num, unit, space=True):
@@ -235,51 +275,9 @@ def format_ls(ls, space=True):
 def journal_entry(cmdr, is_beta, system, station, entry, state):
     if entry['event'] == 'LoadGame':
         this.odyssey = entry.get('Odyssey', False)
+    elif entry['event'] == 'Location':
+        this.starsystem = entry['StarSystem']
     elif entry['event'] == 'Scan':
-        # {
-        #    "timestamp": "2020-06-04T16:38:38Z",
-        #    "event": "Scan",
-        #    "ScanType": "Detailed",
-        # >   "BodyName": "Hypiae Aec QN-B d0 6",
-        #    "BodyID": 6,
-        #    "Parents": [{
-        #        "Star": 0
-        #    }],
-        # >   "StarSystem": "Hypiae Aec QN-B d0",
-        #    "SystemAddress": 10846602755,
-        # >   "DistanceFromArrivalLS": 1853.988159,
-        #    "TidalLock": false,
-        # >   "TerraformState": "Terraformable",
-        # >   "PlanetClass": "High metal content body",
-        #    "Atmosphere": "thin sulfur dioxide atmosphere",
-        #    "AtmosphereType": "SulphurDioxide",
-        #    "AtmosphereComposition": [{
-        #        "Name": "SulphurDioxide",
-        #        "Percent": 100.000000
-        #    }],
-        #    "Volcanism": "",
-        # >   "MassEM": 0.082886,
-        #    "Radius": 2803674.500000,
-        #    "SurfaceGravity": 4.202756,
-        #    "SurfaceTemperature": 235.028137,
-        #    "SurfacePressure": 252.739502,
-        #    "Landable": false,
-        #    "Composition": {
-        #        "Ice": 0.000000,
-        #        "Rock": 0.670286,
-        #        "Metal": 0.329714
-        #    },
-        #    "SemiMajorAxis": 546118336512.000000,
-        #    "Eccentricity": 0.018082,
-        #    "OrbitalInclination": -0.015393,
-        #    "Periapsis": 288.791321,
-        #    "OrbitalPeriod": 169821040.000000,
-        #    "RotationPeriod": 151855.375000,
-        #    "AxialTilt": -0.505372,
-        # >   "WasDiscovered": false,
-        # >   "WasMapped": false
-        # }
-
         if 'PlanetClass' not in entry:
             # That's no moon!
             if 'StarType' in entry:
@@ -292,16 +290,19 @@ def journal_entry(cmdr, is_beta, system, station, entry, state):
                 was_discovered = bool(entry['WasDiscovered'])
                 distancels = float(entry['DistanceFromArrivalLS'])
                 k = get_starclass_k(entry['StarType'])
-                value, honk_value = get_star_value(k, mass, was_discovered)
-                if entry['BodyID'] == 0:
+                value, honk_value = get_star_value(k, mass, not was_discovered)
+                if entry['BodyID'] == 0 or distancels == 0.0:
                     this.main_star = value
                 else:
-                    this.bodies[bodyname_insystem] = (value, value, honk_value, distancels, False)
+                    this.bodies[bodyname_insystem] = (value, value, honk_value, distancels, True)
+                if not this.honked:
+                    this.body_count += 1
 
                 update_display()
                 return
 
         try:
+            efficiency_bonus = 1.25
             # If we get any key-not-in-dict errors, then this body probably
             # wasn't interesting in the first place
             if 'StarSystem' in entry:
@@ -322,12 +323,15 @@ def journal_entry(cmdr, is_beta, system, station, entry, state):
             k = get_planetclass_k(planetclass, terraformable)
             value, mapped_value, honk_value = get_body_value(k, mass, not was_discovered, not was_mapped)
 
-            if bodyname_insystem in this.bodies:
+            if bodyname_insystem in this.bodies.keys():
                 # body exists and is hidden, preserve its "hidden" marker (value < 0)
-                this.bodies[bodyname_insystem] = (value, mapped_value, honk_value, distancels, True)
+                this.bodies[bodyname_insystem] = (
+                value, int(mapped_value * efficiency_bonus), honk_value, distancels, True)
             else:
                 this.bodies[bodyname_insystem] = (value, mapped_value, honk_value, distancels, False)
                 this.planet_count += 1
+                if not this.honked:
+                    this.body_count += 1
 
             update_display()
 
@@ -337,6 +341,7 @@ def journal_entry(cmdr, is_beta, system, station, entry, state):
 
     elif entry['event'] == 'FSSDiscoveryScan':
         this.honked = True
+        this.body_count = entry["BodyCount"]
         update_display()
 
     elif entry['event'] == 'FSSAllBodiesFound':
@@ -356,10 +361,10 @@ def journal_entry(cmdr, is_beta, system, station, entry, state):
             bodyname_insystem = bodyname
 
         print('Hiding', bodyname_insystem)
-        if bodyname_insystem in this.bodies:
+        if bodyname_insystem in this.bodies.keys():
             # body exists, only replace its value with a "hidden" marker
             map_val = this.bodies[bodyname_insystem][1]
-            final_val = map_val * efficiency_bonus if was_efficient else map_val
+            final_val = int(map_val * efficiency_bonus) if was_efficient else map_val
             this.bodies[bodyname_insystem] = (
                 this.bodies[bodyname_insystem][0],
                 final_val,
@@ -367,18 +372,7 @@ def journal_entry(cmdr, is_beta, system, station, entry, state):
                 this.bodies[bodyname_insystem][3],
                 True)
         else:
-            # body does not exist, add it as "hidden" (distance will hopefully filled by Scan event later)
-            terraformable = bool(entry['TerraformState'])
-            distancels = float(entry['DistanceFromArrivalLS'])
-            planetclass = entry['PlanetClass']
-            mass = float(entry['MassEM'])
-            was_discovered = bool(entry['WasDiscovered'])
-            was_mapped = bool(entry['WasMapped'])
-            k = get_planetclass_k(planetclass, terraformable)
-            value, mapped_value, honk_value = get_body_value(k, mass, not was_discovered, not was_mapped)
-            if was_efficient:
-                mapped_value *= efficiency_bonus
-            this.bodies[bodyname_insystem] = (value, mapped_value, honk_value, distancels, True)
+            this.bodies[bodyname_insystem] = (0, 0, 0, 0, True)
             this.planet_count += 1
 
         update_display()
@@ -387,7 +381,6 @@ def journal_entry(cmdr, is_beta, system, station, entry, state):
         if 'StarSystem' in entry:
             this.starsystem = entry['StarSystem']
         this.bodies = {}
-        this.total_value = 0
         this.honked = False
         this.fully_scanned = False
         this.main_star = 0
@@ -412,14 +405,14 @@ def update_display():
             #   key 5: display
             key=lambda item: item[1][3]
         )
-        if v[1] * efficiency_bonus >= this.minvalue and not v[4]
+        if v[1] * efficiency_bonus >= this.minvalue.get() and not v[4]
     ]
 
     def format_body(body_name):
         # template: NAME (VALUE, DIST), …
-        body_value = this.bodies[body_name][1] * efficiency_bonus
+        body_value = int(this.bodies[body_name][1] * efficiency_bonus)
         body_distance = this.bodies[body_name][3]
-        if body_value >= this.minvalue:
+        if body_value >= this.minvalue.get():
             return '%s (%s, %s)' % \
                    (body_name.upper(),
                     format_credits(body_value, False),
@@ -446,5 +439,15 @@ def update_display():
     else:
         this.label['text'] = 'EC: no scans yet'
 
-    calc_system_value()
-    this.label['text'] += '\n' + 'Estimated System Value: {}'.format(format_credits(this.total_value))
+    total_value, max_value = calc_system_value()
+    this.total_label['text'] = 'Estimated System Value: {}'.format(format_credits(total_value))
+    this.total_label['text'] += '\nMaximum System Value: {}'.format(format_credits(max_value))
+
+
+def on_mousewheel(event):
+    shift = (event.state & 0x1) != 0
+    scroll = -1 if event.delta > 0 else 1
+    if shift:
+        this.scroll_canvas.xview_scroll(scroll, "units")
+    else:
+        this.scroll_canvas.yview_scroll(scroll, "units")
