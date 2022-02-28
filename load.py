@@ -52,10 +52,15 @@ this.odyssey = False
 this.minvalue = None
 this.planet_count = 0
 this.body_count = 0
+this.non_body_count = 0
+this.scan_count = 0
 this.map_count = 0
+this.main_star_id = None
 this.main_star = 0
 this.honked = False
 this.fully_scanned = False
+this.was_scanned = False
+this.was_mapped = False
 this.starsystem = ''
 
 # Used during preferences
@@ -76,7 +81,7 @@ def plugin_app(parent: tk.Frame):
     this.minvalue = tk.IntVar(value=config.get_int(key='ec_minvalue', default=400000))
     this.frame = tk.Frame(parent)
     this.label = tk.Label(this.frame)
-    this.label.grid(row=0, column=0, sticky=tk.N)
+    this.label.grid(row=0, column=0, columnspan=2, sticky=tk.N)
     this.scroll_canvas = tk.Canvas(this.frame, height=100, highlightthickness=0)
     scrollbar = ttk.Scrollbar(this.frame, orient="vertical", command=this.scroll_canvas.yview)
     this.scrollable_frame = ttk.Frame(this.scroll_canvas)
@@ -86,20 +91,22 @@ def plugin_app(parent: tk.Frame):
             scrollregion=this.scroll_canvas.bbox("all")
         )
     )
-    this.scroll_canvas.bind_all("<MouseWheel>", on_mousewheel)
-    scroll_window = this.scroll_canvas.create_window((0, 0), window=this.scrollable_frame, anchor="nw")
+    this.scroll_canvas.bind("<Enter>", lambda _: this.scroll_canvas.bind_all('<MouseWheel>', on_mousewheel))
+    this.scroll_canvas.bind("<Leave>", lambda _: this.scroll_canvas.unbind_all('<MouseWheel>'))
+    this.scroll_canvas.create_window((0, 0), window=this.scrollable_frame, anchor="nw")
     this.scroll_canvas.configure(yscrollcommand=scrollbar.set)
     this.values_label = ttk.Label(this.scrollable_frame)
-    this.values_label.pack()
-    parent.bind(
-        "<Configure>",
-        lambda e: this.values_label.configure(width=parent.winfo_width())
-    )
+    this.values_label.pack(fill="both", side="left")
+    # parent.bind(
+    #     "<Configure>",
+    #     lambda e: this.values_label.configure(width=this.frame.winfo_width())
+    # )
     this.scroll_canvas.grid(row=1, column=0, sticky=tk.EW)
     this.scroll_canvas.grid_rowconfigure(1, weight=0)
+    this.frame.grid_columnconfigure(0, weight=1)
     scrollbar.grid(row=1, column=1, sticky=tk.NSEW)
     this.total_label = tk.Label(this.frame)
-    this.total_label.grid(row=2, column=0, sticky=tk.N)
+    this.total_label.grid(row=2, column=0, columnspan=2, sticky=tk.N)
     update_display()
     theme.register(this.values_label)
     return this.frame
@@ -132,29 +139,34 @@ def get_planetclass_k(planetclass, terraformable):
         Adapted from MattG's table at https://forums.frontier.co.uk/threads/exploration-value-formulae.232000/
         Thank you, MattG! :)
     """
+    terraform = 0
+    mult = 1.0  # Multiplier to calculate rough terraform bonus range
     if planetclass == 'Metal rich body':
-        return 21790
+        base = 21790
     elif planetclass == 'Ammonia world':
-        return 96932
+        base = 96932
     elif planetclass == 'Sudarsky class I gas giant':
-        return 1656
+        base = 1656
     elif planetclass == 'Sudarsky class II gas giant' or planetclass == 'High metal content body':
+        base = 9654
         if terraformable:
-            return 9654 + 100677
-        else:
-            return 9654
+            terraform = 100677
+            mult = .95
     elif planetclass == 'Water world':
+        base = 64831
         if terraformable:
-            return 64831 + 116295
-        else:
-            return 64831
+            terraform = 116295
+            mult = .9
     elif planetclass == 'Earthlike body':
-        return 64831 + 116295
+        base = 64831 + 116295  # Terraform is assumed as maximum value
+        terraform = 0
     else:
+        base = 300
         if terraformable:
-            return 300 + 93328
-        else:
-            return 300
+            terraform = 93328
+            mult = .95
+
+    return base, terraform, mult
 
 
 def get_star_value(k, mass, isFirstDiscoverer):
@@ -166,12 +178,15 @@ def get_star_value(k, mass, isFirstDiscoverer):
 
 
 # def get_body_value(k: int, mass: float, isFirstDicoverer: bool, isFirstMapper: bool):
-def get_body_value(k, mass, isFirstDicoverer, isFirstMapper):
+def get_body_value(k, kt, tm, mass, isFirstDicoverer, isFirstMapper):
     """
         Adapted from MattG's example code at https://forums.frontier.co.uk/threads/exploration-value-formulae.232000/
         Thank you, MattG! :)
     """
     q = 0.56591828
+    k_final = k + kt
+    k_final_min = k + (kt * tm)
+
     # deviation from original: we want to know what the body would yield *if*
     # we would map it, so we skip the "isMapped" check
     if isFirstDicoverer and isFirstMapper:
@@ -182,64 +197,111 @@ def get_body_value(k, mass, isFirstDicoverer, isFirstMapper):
     else:
         mappingMultiplier = 3.3333333333
 
-    value = (k + k * q * (mass ** 0.2))
+    value = (k_final + k_final * q * (mass ** 0.2))
+    min_value = (k_final_min + k_final_min * q * (mass ** 0.2))
     mapped_value = value * mappingMultiplier
+    min_mapped_value = min_value * mappingMultiplier
     honk_value = value / 3
+    min_honk_value = min_value / 3
 
     if this.odyssey:
         mapped_value += (mapped_value * 0.3) if ((mapped_value * 0.3) > 555) else 555
+        min_mapped_value += (min_mapped_value * 0.3) if ((min_mapped_value * 0.3) > 555) else 555
 
     value = max(500, value)
+    min_value = max(500, min_value)
     mapped_value = max(500, mapped_value)
+    min_mapped_value = max(500, min_mapped_value)
     honk_value = max(500, honk_value)
+    min_honk_value = max(500, min_honk_value)
     if isFirstDicoverer:
         value *= 2.6
+        min_value *= 2.6
         mapped_value *= 2.6
+        min_mapped_value *= 2.6
         honk_value *= 2.6
+        min_honk_value *= 2.6
 
-    return int(value), int(mapped_value), int(honk_value)
+    return int(value), int(mapped_value), int(honk_value), int(min_value), int(min_mapped_value), int(min_honk_value)
 
 
 def calc_system_value():
+    if this.main_star == 0:
+        this.values_label["text"] = "Main star not scanned.\nSystem already visited?"
+        return 0, 0, 0, 0
     max_value = 0
+    min_max_value = 0
     value_sum = 0
+    min_value_sum = 0
     honk_sum = 0
+    min_honk_sum = 0
     efficiency_bonus = 1.25
     value_sum += this.main_star
+    min_value_sum += this.main_star
     max_value += this.main_star
+    min_max_value += this.main_star
     bodies_text = ""
+    logger.info(this.bodies)
     for k, v in sorted(this.bodies.items(), key=lambda item: item[1][3]):
         bodies_text += "{}:".format(k) + "\n"
         if v[4] is True:
-            bodies_text += "Current Value: {}\nMax Value: {}".format(format_credits(v[1]), format_credits(v[1])) + "\n"
-            max_value += v[1]
-            value_sum += v[1]
+            val_text = "{} - {}".format(format_credits(v[1][1]), format_credits(v[1][0])) if v[1][1] != v[1][0] \
+                else "{}".format(format_credits(v[1][0]))
+            bodies_text += "Current Value (Max): {}".format(val_text) + "\n"
+            max_value += v[1][0]
+            min_max_value += v[1][1]
+            value_sum += v[1][0]
+            min_value_sum += v[1][1]
         else:
-            bodies_text += "Current Value: {}\nMax Value: {}".format(format_credits(v[0]), format_credits(int(v[1] * efficiency_bonus))) + "\n"
-            max_value += int(v[1] * efficiency_bonus)
-            value_sum += v[0]
+            val_text = "{} - {}".format(format_credits(v[0][1]), format_credits(v[0][0])) if v[0][1] != v[0][0] \
+                else "{}".format(format_credits(v[0][0]))
+            max_val_text = "{} - {}".format(
+                format_credits(int(v[1][1] * efficiency_bonus)),
+                format_credits(int(v[1][0] * efficiency_bonus))
+            ) if v[1][1] != v[1][0] \
+                else "{}".format(format_credits(int(v[1][0] * efficiency_bonus)))
+            bodies_text += "Current Value: {}\nMax Value: {}".format(val_text, max_val_text) + "\n"
+            max_value += int(v[1][0] * efficiency_bonus)
+            min_max_value += int(v[1][1] * efficiency_bonus)
+            value_sum += v[0][0]
+            min_value_sum += v[0][1]
         if this.honked:
-            bodies_text += "Honk Value: {}".format(format_credits(v[2])) + "\n"
-            value_sum += v[2]
-            honk_sum += v[2]
-        max_value += v[2]
+            if v[2][0] != v[2][1]:
+                bodies_text += "Honk Value: {} - {}".format(
+                    format_credits(v[2][1]), format_credits(v[2][0])) + "\n"
+            else:
+                bodies_text += "Honk Value: {}".format(format_credits(v[2][0])) + "\n"
+            value_sum += v[2][0]
+            min_value_sum += v[2][1]
+            honk_sum += v[2][0]
+            min_honk_sum += v[2][1]
+        max_value += v[2][0]
+        min_max_value += v[2][1]
         bodies_text += "------------------" + "\n"
-    this.values_label["text"] = "{} (Main star): {} + {} = {}".format(
+    this.values_label["text"] = "{} (Main star):\n   {} + {} = {}".format(
         this.starsystem,
         format_credits(this.main_star),
-        format_credits(honk_sum),
-        format_credits(this.main_star + honk_sum)) + "\n"
-    this.values_label["text"] += bodies_text
+        format_credits(honk_sum) if honk_sum == min_honk_sum else "{} to {}".format(
+            format_credits(min_honk_sum),
+            format_credits(honk_sum)
+        ),
+        (format_credits(this.main_star + honk_sum)) if honk_sum == min_honk_sum else "{} to {}".format(
+            format_credits(this.main_star + min_honk_sum),
+            format_credits(this.main_star + honk_sum)
+        )) + "\n"
     this.values_label["text"] += "------------------" + "\n"
-    if this.fully_scanned:
-        this.values_label["text"] += "Fully Scanned Bonus: {}".format(format_credits(this.body_count * 1000)) + "\n"
-        value_sum += this.body_count * 1000
-    max_value += this.body_count * 1000
-    if this.fully_scanned and this.planet_count == this.map_count:
-        this.values_label["text"] += "Fully Mapped Bonus: {}".format(format_credits(this.planet_count * 10000)) + "\n"
-        value_sum += this.planet_count * 10000
-    max_value += this.planet_count * 10000
-    return value_sum, max_value
+    this.values_label["text"] += bodies_text
+    if not this.was_scanned:
+        if this.fully_scanned:
+            this.values_label["text"] += "Fully Scanned Bonus: {}".format(format_credits(this.body_count * 1000)) + "\n"
+            value_sum += this.body_count * 1000
+        max_value += this.body_count * 1000
+    if not this.was_mapped:
+        if this.fully_scanned and this.planet_count == this.map_count:
+            this.values_label["text"] += "Fully Mapped Bonus: {}".format(format_credits(this.planet_count * 10000)) + "\n"
+            value_sum += this.planet_count * 10000
+        max_value += this.planet_count * 10000
+    return value_sum, min_value_sum, max_value, min_max_value
 
 
 def format_unit(num, unit, space=True):
@@ -291,57 +353,78 @@ def journal_entry(cmdr, is_beta, system, station, entry, state):
                 distancels = float(entry['DistanceFromArrivalLS'])
                 k = get_starclass_k(entry['StarType'])
                 value, honk_value = get_star_value(k, mass, not was_discovered)
-                if entry['BodyID'] == 0 or distancels == 0.0:
+                if entry['BodyID'] == this.main_star_id:
                     this.main_star = value
                 else:
-                    this.bodies[bodyname_insystem] = (value, value, honk_value, distancels, True)
+                    this.bodies[bodyname_insystem] = (
+                        (value, value),
+                        (value, value),
+                        (honk_value, honk_value),
+                        distancels, True)
                 if not this.honked:
                     this.body_count += 1
+
+            if bool(entry["WasDiscovered"]):
+                this.was_scanned = True
+            this.scan_count += 1
+            update_display()
+        else:
+            try:
+                efficiency_bonus = 1.25
+                # If we get any key-not-in-dict errors, then this body probably
+                # wasn't interesting in the first place
+                if 'StarSystem' in entry:
+                    this.starsystem = entry['StarSystem']
+                bodyname = entry['BodyName']
+                terraformable = bool(entry['TerraformState'])
+                distancels = float(entry['DistanceFromArrivalLS'])
+                planetclass = entry['PlanetClass']
+                mass = float(entry['MassEM'])
+                was_discovered = bool(entry['WasDiscovered'])
+                was_mapped = bool(entry['WasMapped'])
+                this.was_scanned = True if was_discovered else this.was_scanned
+                this.was_mapped = True if was_mapped else this.was_mapped
+
+                if bodyname.startswith(this.starsystem + ' '):
+                    bodyname_insystem = bodyname[len(this.starsystem + ' '):]
+                else:
+                    bodyname_insystem = bodyname
+
+                k, kt, tm = get_planetclass_k(planetclass, terraformable)
+                value, mapped_value, honk_value, \
+                    min_value, min_mapped_value, min_honk_value = \
+                    get_body_value(k, kt, tm, mass, not was_discovered, not was_mapped)
+
+                if bodyname_insystem in this.bodies.keys():
+                    # body exists and is hidden, preserve its "hidden" marker (value < 0)
+                    this.bodies[bodyname_insystem] = (
+                        (value, min_value),
+                        (int(mapped_value * efficiency_bonus), int(min_mapped_value * efficiency_bonus)),
+                        (honk_value, min_honk_value),
+                        distancels,
+                        True)
+                else:
+                    this.bodies[bodyname_insystem] = (
+                        (value, min_value),
+                        (int(mapped_value * efficiency_bonus), int(min_mapped_value * efficiency_bonus)),
+                        (honk_value, min_honk_value),
+                        distancels,
+                        False)
+                    this.planet_count += 1
+                    this.scan_count += 1
+                    if not this.honked:
+                        this.body_count += 1
 
                 update_display()
-                return
 
-        try:
-            efficiency_bonus = 1.25
-            # If we get any key-not-in-dict errors, then this body probably
-            # wasn't interesting in the first place
-            if 'StarSystem' in entry:
-                this.starsystem = entry['StarSystem']
-            bodyname = entry['BodyName']
-            terraformable = bool(entry['TerraformState'])
-            distancels = float(entry['DistanceFromArrivalLS'])
-            planetclass = entry['PlanetClass']
-            mass = float(entry['MassEM'])
-            was_discovered = bool(entry['WasDiscovered'])
-            was_mapped = bool(entry['WasMapped'])
-
-            if bodyname.startswith(this.starsystem + ' '):
-                bodyname_insystem = bodyname[len(this.starsystem + ' '):]
-            else:
-                bodyname_insystem = bodyname
-
-            k = get_planetclass_k(planetclass, terraformable)
-            value, mapped_value, honk_value = get_body_value(k, mass, not was_discovered, not was_mapped)
-
-            if bodyname_insystem in this.bodies.keys():
-                # body exists and is hidden, preserve its "hidden" marker (value < 0)
-                this.bodies[bodyname_insystem] = (
-                value, int(mapped_value * efficiency_bonus), honk_value, distancels, True)
-            else:
-                this.bodies[bodyname_insystem] = (value, mapped_value, honk_value, distancels, False)
-                this.planet_count += 1
-                if not this.honked:
-                    this.body_count += 1
-
-            update_display()
-
-        except Exception as e:
-            traceback.print_exc()
-            print(e)
+            except Exception as e:
+                traceback.print_exc()
+                print(e)
 
     elif entry['event'] == 'FSSDiscoveryScan':
         this.honked = True
         this.body_count = entry["BodyCount"]
+        this.non_body_count = entry['NonBodyCount']
         update_display()
 
     elif entry['event'] == 'FSSAllBodiesFound':
@@ -364,7 +447,10 @@ def journal_entry(cmdr, is_beta, system, station, entry, state):
         if bodyname_insystem in this.bodies.keys():
             # body exists, only replace its value with a "hidden" marker
             map_val = this.bodies[bodyname_insystem][1]
-            final_val = int(map_val * efficiency_bonus) if was_efficient else map_val
+            final_val = (
+                int(map_val[0] * efficiency_bonus) if was_efficient else map_val[0],
+                int(map_val[1] * efficiency_bonus) if was_efficient else map_val[1]
+            )
             this.bodies[bodyname_insystem] = (
                 this.bodies[bodyname_insystem][0],
                 final_val,
@@ -372,7 +458,7 @@ def journal_entry(cmdr, is_beta, system, station, entry, state):
                 this.bodies[bodyname_insystem][3],
                 True)
         else:
-            this.bodies[bodyname_insystem] = (0, 0, 0, 0, True)
+            this.bodies[bodyname_insystem] = ((0, 0), (0, 0), (0, 0), 0, True)
             this.planet_count += 1
 
         update_display()
@@ -380,13 +466,19 @@ def journal_entry(cmdr, is_beta, system, station, entry, state):
     elif entry['event'] == 'FSDJump':
         if 'StarSystem' in entry:
             this.starsystem = entry['StarSystem']
+        this.main_star_id = entry['BodyID']
+        this.main_star = 0
         this.bodies = {}
         this.honked = False
         this.fully_scanned = False
-        this.main_star = 0
+        this.was_scanned = False
+        this.was_mapped = False
         this.planet_count = 0
         this.map_count = 0
+        this.body_count = 0
+        this.non_body_count = 0
         update_display()
+        this.scroll_canvas.yview_scroll(-1, "page")
 
 
 def update_display():
@@ -405,29 +497,35 @@ def update_display():
             #   key 5: display
             key=lambda item: item[1][3]
         )
-        if v[1] * efficiency_bonus >= this.minvalue.get() and not v[4]
+        if v[1][0] * efficiency_bonus >= this.minvalue.get() and not v[4]
     ]
 
     def format_body(body_name):
         # template: NAME (VALUE, DIST), …
-        body_value = int(this.bodies[body_name][1] * efficiency_bonus)
+        body_value = int(this.bodies[body_name][1][0] * efficiency_bonus)
         body_distance = this.bodies[body_name][3]
         if body_value >= this.minvalue.get():
-            return '%s (%s, %s)' % \
+            return '%s (up to %s, %s)' % \
                    (body_name.upper(),
                     format_credits(body_value, False),
                     format_ls(body_distance, False))
         else:
             return '%s'
 
-    if this.bodies:
+    if this.bodies or this.main_star > 0:
         text = 'EC '
         if this.honked:
             text += '(H)'
         if this.fully_scanned:
-            text += '(S)'
-            if this.planet_count == this.map_count:
-                text += '(M)'
+            if this.was_scanned:
+                text += '(S)'
+            else:
+                text += '(S+)'
+            if this.planet_count > 0 and this.planet_count == this.map_count:
+                if this.was_mapped:
+                    text += '(M)'
+                else:
+                    text += '(M+)'
 
         text += ': '
 
@@ -439,14 +537,22 @@ def update_display():
     else:
         this.label['text'] = 'EC: no scans yet'
 
-    total_value, max_value = calc_system_value()
-    this.total_label['text'] = 'Estimated System Value: {}'.format(format_credits(total_value))
-    this.total_label['text'] += '\nMaximum System Value: {}'.format(format_credits(max_value))
+    total_value, min_total_value, max_value, min_max_value = calc_system_value()
+    if total_value != min_total_value:
+        this.total_label['text'] = 'Estimated System Value: {} to {}'.format(
+            format_credits(min_total_value), format_credits(total_value))
+        this.total_label['text'] += '\nMaximum System Value: {} to {}'.format(
+            format_credits(min_max_value), format_credits(max_value))
+    else:
+        this.total_label['text'] = 'Estimated System Value: {}'.format(
+            format_credits(total_value) if total_value > 0 else "N/A")
+        this.total_label['text'] += '\nMaximum System Value: {}'.format(
+            format_credits(max_value) if total_value > 0 else "N/A")
 
 
 def on_mousewheel(event):
     shift = (event.state & 0x1) != 0
-    scroll = -1 if event.delta > 0 else 1
+    scroll = -2 if event.delta > 0 else 2
     if shift:
         this.scroll_canvas.xview_scroll(scroll, "units")
     else:
