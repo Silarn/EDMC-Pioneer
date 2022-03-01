@@ -294,12 +294,16 @@ def calc_system_value():
         if this.fully_scanned:
             this.values_label["text"] += "Fully Scanned Bonus: {}".format(format_credits(this.body_count * 1000)) + "\n"
             value_sum += this.body_count * 1000
+            min_value_sum += this.body_count * 1000
         max_value += this.body_count * 1000
+        min_max_value += this.body_count * 1000
     if not this.was_mapped:
         if this.fully_scanned and this.planet_count == this.map_count:
             this.values_label["text"] += "Fully Mapped Bonus: {}".format(format_credits(this.planet_count * 10000)) + "\n"
             value_sum += this.planet_count * 10000
+            min_value_sum += this.planet_count * 10000
         max_value += this.planet_count * 10000
+        min_max_value += this.planet_count * 10000
     return value_sum, min_value_sum, max_value, min_max_value
 
 
