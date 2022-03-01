@@ -34,9 +34,9 @@ from l10n import Locale
 from theme import theme
 
 import traceback
-from EDMCLogging import get_main_logger
-
-logger = get_main_logger()
+# from EDMCLogging import get_main_logger
+# 
+# logger = get_main_logger()
 
 VERSION = '0.8'
 
@@ -241,7 +241,6 @@ def calc_system_value():
     max_value += this.main_star
     min_max_value += this.main_star
     bodies_text = ""
-    logger.info(this.bodies)
     for k, v in sorted(this.bodies.items(), key=lambda item: item[1][3]):
         bodies_text += "{}:".format(k) + "\n"
         if v[4] is True:
