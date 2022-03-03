@@ -1,44 +1,24 @@
 # -*- coding: utf-8 -*-
 
-# Economical Cartographics plugin for EDMC
-# Source: https://github.com/n-st/EDMC-EconomicalCartographics
-# Based on the Habitable Zone plugin by Jonathan Harris: https://github.com/Marginal/HabZone.
+# Pioneer (System Value) plugin for EDMC
+# Source: https://github.com/Silarn/EDMC-Pioneer
+# Inspired by Economical Cartographics: https://github.com/n-st/EDMC-EconomicalCartographics
 # Licensed under the [GNU Public License (GPL)](http://www.gnu.org/licenses/gpl-2.0.html) version 2 or later.
 
 from __future__ import print_function
 
-from collections import defaultdict
-import requests
 import sys
-import threading
-
-try:
-    # Python 2
-    from urllib2 import quote
-    import Tkinter as tk
-    from Tkinter import ttk
-except ModuleNotFoundError:
-    # Python 3
-    from urllib.parse import quote
-    import tkinter as tk
-    from tkinter import ttk
-
-from ttkHyperlinkLabel import HyperlinkLabel
+import tkinter as tk
+from tkinter import ttk
 import myNotebook as nb
-
-if __debug__:
-    from traceback import print_exc
-
 from config import config
-from l10n import Locale
 from theme import theme
-
 import traceback
 # from EDMCLogging import get_main_logger
 # 
 # logger = get_main_logger()
 
-VERSION = '0.8'
+VERSION = '0.9'
 
 this = sys.modules[__name__]  # For holding module globals
 this.frame = None

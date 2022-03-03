@@ -1,42 +1,50 @@
-# Economical Cartographics plugin for [EDMC](https://github.com/Marginal/EDMarketConnector/wiki)
+# Pioneer plugin for [EDMC](https://github.com/Marginal/EDMarketConnector/wiki)
 
-This plugin helps explorers find high-value planets in Elite: Dangerous.
+Pioneer (System Value) aims to calculate the overall value of a newly scanned system. Due to limitations of journal
+data, previously visited or 'unscannable' systems are difficult to calculate. This calculation includes whether a
+body was previous discovered or mapped, the terraforming bonus (as a likely range), and any 'first fully scanned / mapped'
+bonuses you may qualify for.
 
-It analyses the data returned by the Full-System Scanner and lists planets that
-are worth mapping with a [Detailed Surface Scanner][DSS], i.e. those whose
-estimated scan reward (based on type, terraformability and first-discovery
-state) exceeds a given value.
+Pioneer will display a number of things. Based on a configurable value, the top of the pane will display high value
+mappable bodies. This is followed by a list of scanned bodies, their calculated current and maximum values, the honk
+bonus they provide, bonuses for being the first to fully map or scan the system, and a calculation for the main star
+value. Finally, the overall current (based on scan and map status) and maximum (if fully mapped) values are displayed
+at the bottom of the pane.
 
-The plugin will start out by showing "EC: no scans yet", and will start
-displaying planet information in that line once you scan at least one planet
-with the FSS.  
-"Worthwhile" planets (value >= 300 kCr) will be listed explicitly with their
-value and distance from the main star, "cheap" planets will simply be added to
-a counter at the end of the line.
-
-**Note:** The plugin is not quite complete yet (it could use a layout polish,
-and a proper configuration menu), but is usable in its basic functions.
+## Requirements
+* EDMC version 5 and above
 
 ## Installation
-
-* On EDMC's Plugins settings tab press the “Open” button. This reveals the `plugins` folder where EDMC looks for plugins.
-* Download the [latest release](https://github.com/n-st/EDMC-EconomicalCartographics/releases/latest).
-* Open the `.zip` archive that you downloaded and move the `EDMC-EconomicalCartographics` folder contained inside into the `plugins` folder.
-
-You will need to re-start EDMC for it to notice the new plugin.
+* Download the [latest release]
+* Extract the `.zip` archive that you downloaded into the EDMC `plugins` folder
+  * This is accessible via the plugins tab in the EDMC settings window
+* Start or restart EDMC to register the new plugin
 
 ## Acknowledgements
 
-Plugin code and description partially based on the [Habitable Zone plugin][HabZone] by Jonathan Harris.
+Core idea and some base calculations originate from the [Economical Cartographics plugin][EcCon] by Nils Steinger.
 
 Value calculations based on [information by MattG](https://forums.frontier.co.uk/threads/exploration-value-formulae.232000/).
 
+## Roadmap
+
+The overall goal is to make this a valuable tool for explorers in Elite Dangerous, highlighting valuable bodies in a
+reasonably compact format.
+
+Currently no real body data is preserved except for the overall value and distance of each body. My plan is to extend
+this to track more body data so that I can display body type, landability, and atmospherics in order to better indicate
+interesting bodies, such as a chance for biological samples.
+
+I also intend to offer more configuration options, like an ability to hide the scroll box of individual body values.
+
 ## License
 
-[Habitable Zone plugin][HabZone] Copyright © 2017 Jonathan Harris.  
-Modified into the Economical Cartographics plugin by [n-st](https://github.com/n-st).
+[NavRoute plugin][NavRoute] Copyright © 2022 Jeremy Rimpo
 
-Licensed under the [GNU Public License (GPL)](http://www.gnu.org/licenses/gpl-2.0.html) version 2 or later.
+Licensed under the [GNU Public License (GPL)][GPLv2] version 2 or later.
 
-[DSS]: http://elite-dangerous.wikia.com/wiki/Detailed_Surface_Scanner
-[HabZone]: https://github.com/Marginal/HabZone
+[EDMC]: https://github.com/EDCD/EDMarketConnector/wiki
+[Pioneer]: https://github.com/Silarn/EDMC-Pioneer
+[EcCon]: https://github.com/n-st/EDMC-EconomicalCartographics
+[latest release]: https://github.com/Silarn/EDMC-Pioneer/releases/latest
+[GPLv2]: http://www.gnu.org/licenses/gpl-2.0.html
