@@ -2,8 +2,8 @@
 
 Pioneer (System Value) aims to calculate the overall value of a newly scanned system. Due to limitations of journal
 data, previously visited or 'unscannable' systems are difficult to calculate. This calculation includes whether a
-body was previous discovered or mapped, the terraforming bonus (as a likely range), and any 'first fully scanned / mapped'
-bonuses you may qualify for.
+body was previously discovered or mapped, the terraforming bonus (as a likely range), and any 'first fully scanned /
+mapped' bonuses you may qualify for.
 
 Pioneer will display a number of things. Based on a configurable value, the top of the pane will display high value
 mappable bodies. This is followed by a list of scanned bodies, their calculated current and maximum values, the honk
@@ -39,7 +39,7 @@ I also intend to offer more configuration options, like an ability to hide the s
 
 ## License
 
-[NavRoute plugin][NavRoute] Copyright © 2022 Jeremy Rimpo
+[Pioneer plugin][Pioneer] Copyright © 2022 Jeremy Rimpo
 
 Licensed under the [GNU Public License (GPL)][GPLv2] version 2 or later.
 
