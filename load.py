@@ -5,18 +5,15 @@
 # Inspired by Economical Cartographics: https://github.com/n-st/EDMC-EconomicalCartographics
 # Licensed under the [GNU Public License (GPL)](http://www.gnu.org/licenses/gpl-2.0.html) version 2 or later.
 
-from __future__ import print_function
-
 import sys
 import tkinter as tk
 from tkinter import ttk
 import myNotebook as nb
 from config import config
 from theme import theme
-import traceback
-# from EDMCLogging import get_main_logger
-# 
-# logger = get_main_logger()
+from EDMCLogging import get_main_logger
+
+logger = get_main_logger()
 
 VERSION = '0.9'
 
@@ -404,8 +401,7 @@ def journal_entry(cmdr, is_beta, system, station, entry, state):
                 update_display()
 
             except Exception as e:
-                traceback.print_exc()
-                print(e)
+                logger.error(e)
 
     elif entry['event'] == 'FSSDiscoveryScan':
         this.honked = True
