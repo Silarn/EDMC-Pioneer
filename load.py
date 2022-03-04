@@ -71,8 +71,8 @@ def plugin_app(parent: tk.Frame):
             scrollregion=this.scroll_canvas.bbox("all")
         )
     )
-    this.scroll_canvas.bind("<Enter>", lambda _: this.scroll_canvas.bind_all('<MouseWheel>', on_mousewheel))
-    this.scroll_canvas.bind("<Leave>", lambda _: this.scroll_canvas.unbind_all('<MouseWheel>'))
+    this.scroll_canvas.bind("<Enter>", bind_mousewheel)
+    this.scroll_canvas.bind("<Leave>", unbind_mousewheel)
     this.scroll_canvas.create_window((0, 0), window=this.scrollable_frame, anchor="nw")
     this.scroll_canvas.configure(yscrollcommand=scrollbar.set)
     this.values_label = ttk.Label(this.scrollable_frame)
@@ -537,9 +537,28 @@ def update_display():
             format_credits(max_value) if total_value > 0 else "N/A")
 
 
+def bind_mousewheel(event):
+    if sys.platform in ("linux", "cygwin", "msys"):
+        this.scroll_canvas.bind_all('<Button-4>', on_mousewheel)
+        this.scroll_canvas.bind_all('<Button-5>', on_mousewheel)
+    else:
+        this.scroll_canvas.bind_all('<MouseWheel>', on_mousewheel)
+
+
+def unbind_mousewheel(event):
+    if sys.platform in ("linux", "cygwin", "msys"):
+        this.scroll_canvas.unbind_all('<Button-4>')
+        this.scroll_canvas.unbind_all('<Button-5>')
+    else:
+        this.scroll_canvas.unbind_all('<MouseWheel>')
+
+
 def on_mousewheel(event):
     shift = (event.state & 0x1) != 0
-    scroll = -2 if event.delta > 0 else 2
+    if event.num == 4 or event.delta == -120:
+        scroll = -1
+    if event.num == 5 or event.delta == 120:
+        scroll = 1
     if shift:
         this.scroll_canvas.xview_scroll(scroll, "units")
     else:
