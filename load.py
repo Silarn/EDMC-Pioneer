@@ -33,7 +33,7 @@ this.minvalue = None
 this.planet_count = 0
 this.body_count = 0
 this.non_body_count = 0
-this.scan_count = 0
+this.scans = set()
 this.map_count = 0
 this.main_star_id = None
 this.main_star = 0
@@ -153,6 +153,7 @@ def get_star_value(k, mass, isFirstDiscoverer):
     value = k + (mass * k / 66.25)
     honk_value = value / 3
     if isFirstDiscoverer:
+        value *= 2.6
         honk_value *= 2.6
     return int(value), int(honk_value)
 
@@ -271,15 +272,17 @@ def calc_system_value():
     this.values_label["text"] += "------------------" + "\n"
     this.values_label["text"] += bodies_text
     if not this.was_scanned:
-        if this.fully_scanned:
-            this.values_label["text"] += "Fully Scanned Bonus: {}".format(format_credits(this.body_count * 1000)) + "\n"
-            value_sum += this.body_count * 1000
-            min_value_sum += this.body_count * 1000
-        max_value += this.body_count * 1000
-        min_max_value += this.body_count * 1000
-    if not this.was_mapped:
+        total_bodies = this.body_count + this.non_body_count
+        if this.fully_scanned and total_bodies == len(this.scans):
+            this.values_label["text"] += "Fully Scanned Bonus: {}".format(format_credits(total_bodies * 1000)) + "\n"
+            value_sum += total_bodies * 1000
+            min_value_sum += total_bodies * 1000
+        max_value += total_bodies * 1000
+        min_max_value += total_bodies * 1000
+    if not this.was_mapped and this.planet_count > 0:
         if this.fully_scanned and this.planet_count == this.map_count:
-            this.values_label["text"] += "Fully Mapped Bonus: {}".format(format_credits(this.planet_count * 10000)) + "\n"
+            this.values_label["text"] += "Fully Mapped Bonus: {}".format(
+                format_credits(this.planet_count * 10000)) + "\n"
             value_sum += this.planet_count * 10000
             min_value_sum += this.planet_count * 10000
         max_value += this.planet_count * 10000
@@ -323,14 +326,14 @@ def journal_entry(cmdr, is_beta, system, station, entry, state):
     elif entry['event'] == 'Location':
         this.starsystem = entry['StarSystem']
     elif entry['event'] == 'Scan':
+        bodyname = entry['BodyName']
+        if bodyname.startswith(this.starsystem + ' '):
+            bodyname_insystem = bodyname[len(this.starsystem + ' '):]
+        else:
+            bodyname_insystem = bodyname
         if 'PlanetClass' not in entry:
             # That's no moon!
             if 'StarType' in entry:
-                bodyname = entry['BodyName']
-                if bodyname.startswith(this.starsystem + ' '):
-                    bodyname_insystem = bodyname[len(this.starsystem + ' '):]
-                else:
-                    bodyname_insystem = bodyname
                 mass = entry['StellarMass']
                 was_discovered = bool(entry['WasDiscovered'])
                 distancels = float(entry['DistanceFromArrivalLS'])
@@ -349,54 +352,56 @@ def journal_entry(cmdr, is_beta, system, station, entry, state):
 
             if bool(entry["WasDiscovered"]):
                 this.was_scanned = True
-            this.scan_count += 1
+            this.scans.add(bodyname_insystem)
             update_display()
         else:
             try:
                 efficiency_bonus = 1.25
                 # If we get any key-not-in-dict errors, then this body probably
                 # wasn't interesting in the first place
-                if 'StarSystem' in entry:
-                    this.starsystem = entry['StarSystem']
-                bodyname = entry['BodyName']
-                terraformable = bool(entry['TerraformState'])
-                distancels = float(entry['DistanceFromArrivalLS'])
-                planetclass = entry['PlanetClass']
-                mass = float(entry['MassEM'])
-                was_discovered = bool(entry['WasDiscovered'])
-                was_mapped = bool(entry['WasMapped'])
-                this.was_scanned = True if was_discovered else this.was_scanned
-                this.was_mapped = True if was_mapped else this.was_mapped
+                if bodyname_insystem not in this.bodies or this.bodies[bodyname_insystem][0][0] == 0:
+                    if 'StarSystem' in entry:
+                        this.starsystem = entry['StarSystem']
+                    terraformable = bool(entry['TerraformState'])
+                    distancels = float(entry['DistanceFromArrivalLS'])
+                    planetclass = entry['PlanetClass']
+                    mass = float(entry['MassEM'])
+                    was_discovered = bool(entry['WasDiscovered'])
+                    was_mapped = bool(entry['WasMapped'])
+                    this.was_scanned = True if was_discovered else this.was_scanned
+                    this.was_mapped = True if was_mapped else this.was_mapped
 
-                if bodyname.startswith(this.starsystem + ' '):
-                    bodyname_insystem = bodyname[len(this.starsystem + ' '):]
-                else:
-                    bodyname_insystem = bodyname
-
-                k, kt, tm = get_planetclass_k(planetclass, terraformable)
-                value, mapped_value, honk_value, \
+                    k, kt, tm = get_planetclass_k(planetclass, terraformable)
+                    value, mapped_value, honk_value, \
                     min_value, min_mapped_value, min_honk_value = \
-                    get_body_value(k, kt, tm, mass, not was_discovered, not was_mapped)
+                        get_body_value(k, kt, tm, mass, not was_discovered, not was_mapped)
 
-                if bodyname_insystem in this.bodies.keys():
-                    # body exists and is hidden, preserve its "hidden" marker (value < 0)
-                    this.bodies[bodyname_insystem] = (
-                        (value, min_value),
-                        (int(mapped_value * efficiency_bonus), int(min_mapped_value * efficiency_bonus)),
-                        (honk_value, min_honk_value),
-                        distancels,
-                        True)
-                else:
-                    this.bodies[bodyname_insystem] = (
-                        (value, min_value),
-                        (int(mapped_value * efficiency_bonus), int(min_mapped_value * efficiency_bonus)),
-                        (honk_value, min_honk_value),
-                        distancels,
-                        False)
-                    this.planet_count += 1
-                    this.scan_count += 1
-                    if not this.honked:
-                        this.body_count += 1
+                    if bodyname_insystem in this.bodies:
+                        if this.bodies[bodyname_insystem][1][0] == 0:
+                            this.bodies[bodyname_insystem] = (
+                                (value, min_value),
+                                (int(mapped_value), int(min_mapped_value)),
+                                (honk_value, min_honk_value),
+                                distancels,
+                                True)
+                        else:
+                            this.bodies[bodyname_insystem] = (
+                                (value, min_value),
+                                (int(mapped_value * efficiency_bonus), int(min_mapped_value * efficiency_bonus)),
+                                (honk_value, min_honk_value),
+                                distancels,
+                                True)
+                    else:
+                        this.bodies[bodyname_insystem] = (
+                            (value, min_value),
+                            (int(mapped_value * efficiency_bonus), int(min_mapped_value * efficiency_bonus)),
+                            (honk_value, min_honk_value),
+                            distancels,
+                            False)
+                        this.planet_count += 1
+                        this.scans.add(bodyname_insystem)
+                        if not this.honked:
+                            this.body_count += 1
 
                 update_display()
 
@@ -416,8 +421,8 @@ def journal_entry(cmdr, is_beta, system, station, entry, state):
 
     elif entry['event'] == 'SAAScanComplete':
         efficiency_bonus = 1.25
-        target = entry['EfficiencyTarget']
-        used = entry['ProbesUsed']
+        target = int(entry['EfficiencyTarget'])
+        used = int(entry['ProbesUsed'])
         was_efficient = True if target >= used else False
         this.map_count += 1
         bodyname = entry['BodyName']
@@ -425,8 +430,6 @@ def journal_entry(cmdr, is_beta, system, station, entry, state):
             bodyname_insystem = bodyname[len(this.starsystem + ' '):]
         else:
             bodyname_insystem = bodyname
-
-        print('Hiding', bodyname_insystem)
         if bodyname_insystem in this.bodies.keys():
             # body exists, only replace its value with a "hidden" marker
             map_val = this.bodies[bodyname_insystem][1]
@@ -441,7 +444,7 @@ def journal_entry(cmdr, is_beta, system, station, entry, state):
                 this.bodies[bodyname_insystem][3],
                 True)
         else:
-            this.bodies[bodyname_insystem] = ((0, 0), (0, 0), (0, 0), 0, True)
+            this.bodies[bodyname_insystem] = ((0, 0), (1.25, 1.25), (0, 0), 0, True)
             this.planet_count += 1
 
         update_display()
@@ -460,6 +463,7 @@ def journal_entry(cmdr, is_beta, system, station, entry, state):
         this.map_count = 0
         this.body_count = 0
         this.non_body_count = 0
+        this.scans = set()
         update_display()
         this.scroll_canvas.yview_scroll(-1, "page")
 
