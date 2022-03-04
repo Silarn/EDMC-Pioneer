@@ -54,7 +54,7 @@ def plugin_start3(plugin_dir):
 
 def plugin_start():
     # App isn't initialised at this point so can't do anything interesting
-    return 'EconomicalCartographics'
+    return 'Pioneer'
 
 
 def plugin_app(parent: tk.Frame):
