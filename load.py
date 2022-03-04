@@ -96,6 +96,7 @@ def plugin_prefs(parent, cmdr, is_beta):
     frame = nb.Frame(parent)
     nb.Label(frame, text='Minimum Value:').grid(row=0, column=0, sticky=tk.W)
     nb.Entry(frame, textvariable=this.minvalue).grid(row=0, column=1, columnspan=2, sticky=tk.W)
+    nb.Label(frame, text='Cr').grid(row=0, column=3, sticky=tk.W)
     return frame
 
 
@@ -500,29 +501,28 @@ def update_display():
             return '%s'
 
     if this.bodies or this.main_star > 0:
-        text = 'EC '
+        text = 'Pioneer: Scanning\n'
         if this.honked:
-            text += '(H)'
-        if this.fully_scanned:
+            text += ' (H)'
+        if this.fully_scanned and len(this.scans) == (this.body_count + this.non_body_count):
             if this.was_scanned:
-                text += '(S)'
+                text += ' (S)'
             else:
-                text += '(S+)'
+                text += ' (S+)'
             if this.planet_count > 0 and this.planet_count == this.map_count:
                 if this.was_mapped:
-                    text += '(M)'
+                    text += ' (M)'
                 else:
-                    text += '(M+)'
-
-        text += ': '
+                    text += ' (M+)'
 
         if valuable_body_names:
+            text += 'Valuable Bodies (> {}):'.format(format_credits(this.minvalue.get)) + '\n'
             text += '\n'.join([format_body(b) for b in valuable_body_names])
             text += ' + '
         text += '#%d' % (len(this.bodies) - len(valuable_body_names))
         this.label['text'] = text
     else:
-        this.label['text'] = 'EC: no scans yet'
+        this.label['text'] = 'Pioneer: Nothing Scanned'
 
     total_value, min_total_value, max_value, min_max_value = calc_system_value()
     if total_value != min_total_value:
