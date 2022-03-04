@@ -501,7 +501,7 @@ def update_display():
             return '%s'
 
     if this.bodies or this.main_star > 0:
-        text = 'Pioneer: Scanning\n'
+        text = 'Pioneer: Scanning'
         if this.honked:
             text += ' (H)'
         if this.fully_scanned and len(this.scans) == (this.body_count + this.non_body_count):
@@ -514,12 +514,12 @@ def update_display():
                     text += ' (M)'
                 else:
                     text += ' (M+)'
+        text += '\n'
 
         if valuable_body_names:
-            text += 'Valuable Bodies (> {}):'.format(format_credits(this.minvalue.get)) + '\n'
+            text += 'Valuable Bodies (> {}):'.format(format_credits(this.minvalue.get())) + '\n'
             text += '\n'.join([format_body(b) for b in valuable_body_names])
-            text += ' + '
-        text += '#%d' % (len(this.bodies) - len(valuable_body_names))
+        text += '\n' + 'B#: {} NB#: {}'.format(this.body_count, this.non_body_count)
         this.label['text'] = text
     else:
         this.label['text'] = 'Pioneer: Nothing Scanned'
