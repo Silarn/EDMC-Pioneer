@@ -292,10 +292,7 @@ def calc_system_value():
 
 
 def format_unit(num, unit, space=True):
-    if num > 9999999:
-        # 12 Mu
-        s = '%.0f M' % (num / 1000000.0)
-    elif num > 999999:
+    if num > 999999:
         # 1.3 Mu
         s = '%.1f M' % (num / 1000000.0)
     elif num > 999:
