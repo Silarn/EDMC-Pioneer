@@ -7,10 +7,11 @@
 
 import sys
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, Widget as tkWidget
 import myNotebook as nb
 from config import config
 from theme import theme
+import locale
 from EDMCLogging import get_main_logger
 
 logger = get_main_logger()
@@ -20,13 +21,15 @@ VERSION = '0.9'
 this = sys.modules[__name__]  # For holding module globals
 this.frame = None
 this.scroll_canvas = None
+this.scrollbar = None
 this.scrollable_frame = None
 this.label = None
 this.values_label = None
 this.total_label = None
 this.bodies = {}
 this.odyssey = False
-this.minvalue = None
+this.min_value = None
+this.shorten_values = None
 this.planet_count = 0
 this.body_count = 0
 this.non_body_count = 0
@@ -55,12 +58,12 @@ def plugin_start():
 
 
 def plugin_app(parent: tk.Frame):
-    this.minvalue = tk.IntVar(value=config.get_int(key='ec_minvalue', default=400000))
+    parse_config()
     this.frame = tk.Frame(parent)
     this.label = tk.Label(this.frame)
     this.label.grid(row=0, column=0, columnspan=2, sticky=tk.N)
     this.scroll_canvas = tk.Canvas(this.frame, height=100, highlightthickness=0)
-    scrollbar = ttk.Scrollbar(this.frame, orient="vertical", command=this.scroll_canvas.yview)
+    this.scrollbar = ttk.Scrollbar(this.frame, orient="vertical", command=this.scroll_canvas.yview)
     this.scrollable_frame = ttk.Frame(this.scroll_canvas)
     this.scrollable_frame.bind(
         "<Configure>",
@@ -71,17 +74,13 @@ def plugin_app(parent: tk.Frame):
     this.scroll_canvas.bind("<Enter>", bind_mousewheel)
     this.scroll_canvas.bind("<Leave>", unbind_mousewheel)
     this.scroll_canvas.create_window((0, 0), window=this.scrollable_frame, anchor="nw")
-    this.scroll_canvas.configure(yscrollcommand=scrollbar.set)
+    this.scroll_canvas.configure(yscrollcommand=this.scrollbar.set)
     this.values_label = ttk.Label(this.scrollable_frame)
     this.values_label.pack(fill="both", side="left")
-    # parent.bind(
-    #     "<Configure>",
-    #     lambda e: this.values_label.configure(width=this.frame.winfo_width())
-    # )
     this.scroll_canvas.grid(row=1, column=0, sticky=tk.EW)
     this.scroll_canvas.grid_rowconfigure(1, weight=0)
     this.frame.grid_columnconfigure(0, weight=1)
-    scrollbar.grid(row=1, column=1, sticky=tk.NSEW)
+    this.scrollbar.grid(row=1, column=1, sticky=tk.NSEW)
     this.total_label = tk.Label(this.frame)
     this.total_label.grid(row=2, column=0, columnspan=2, sticky=tk.N)
     update_display()
@@ -92,14 +91,32 @@ def plugin_app(parent: tk.Frame):
 def plugin_prefs(parent, cmdr, is_beta):
     frame = nb.Frame(parent)
     nb.Label(frame, text='Minimum Value:').grid(row=0, column=0, sticky=tk.W)
-    nb.Entry(frame, textvariable=this.minvalue).grid(row=0, column=1, columnspan=2, sticky=tk.W)
+    nb.Entry(frame, textvariable=this.min_value).grid(row=0, column=1, columnspan=2, sticky=tk.W)
     nb.Label(frame, text='Cr').grid(row=0, column=3, sticky=tk.W)
+    nb.Checkbutton(
+        frame,
+        # LANG: Label for checkbox to utilise alternative Coriolis URL method
+        text='Shorted credit values',
+        variable=this.shorten_values
+    ).grid(row=1, columnspan=3, sticky=tk.W)
+    nb.Label(frame, text='Shorten Credit Values')
     return frame
 
 
 def prefs_changed(cmdr, is_beta):
-    config.set('ec_minvalue', this.minvalue.get())
+    config.set('pioneer_min_value', this.min_value.get())
+    config.set('pioneer_shorten', this.shorten_values.get())
     update_display()
+
+
+def parse_config():
+    locale.setlocale(locale.LC_ALL, '')
+    if config.get_int(key='ec_min_value', default=None) is not None:
+        this.min_value = tk.IntVar(value=config.get_int(key='ec_min_value'))
+        config.delete(key='ec_min_value')
+    else:
+        this.min_value = tk.IntVar(value=config.get_int(key='pioneer_min_value', default=400000))
+    this.shorten_values = tk.BooleanVar(value=config.get_bool(key='pioneer_shorten', default=True))
 
 
 def get_starclass_k(starclass):
@@ -285,19 +302,25 @@ def calc_system_value():
             min_value_sum += this.planet_count * 10000
         max_value += this.planet_count * 10000
         min_max_value += this.planet_count * 10000
+    this.scroll_canvas.configure(width=100)
+    tkWidget.nametowidget(this.frame, name=this.frame.winfo_parent()).update()
+    label_width = this.values_label.winfo_width()
+    full_width = this.label.winfo_width() - this.scrollbar.winfo_width()
+    final_width = label_width if label_width > full_width else full_width
+    this.scroll_canvas.configure(width=final_width)
     return value_sum, min_value_sum, max_value, min_max_value
 
 
 def format_unit(num, unit, space=True):
     if num > 999999:
         # 1.3 Mu
-        s = '%.1f M' % (num / 1000000.0)
+        s = locale.format_string('%.1f M', num / 1000000.0, grouping=True, monetary=True)
     elif num > 999:
         # 456 ku
-        s = '%.1f k' % (num / 1000.0)
+        s = locale.format_string('%.1f k', num / 1000.0, grouping=True, monetary=True)
     else:
         # 789 u
-        s = '%.0f ' % (num)
+        s = locale.format_string('%.0f ', num, grouping=True, monetary=True)
 
     if not space:
         s = s.replace(' ', '')
@@ -308,7 +331,9 @@ def format_unit(num, unit, space=True):
 
 
 def format_credits(credits, space=True):
-    return format_unit(credits, 'Cr', space)
+    if this.shorten_values.get():
+        return format_unit(credits, 'Cr', space)
+    return locale.format_string('%d Cr', credits, grouping=True, monetary=True)
 
 
 def format_ls(ls, space=True):
@@ -471,21 +496,21 @@ def update_display():
             this.bodies.items(),
             # multi-key sorting:
             #   use only the value from the dict (item[1]), which is a tuple (credit_value, k, distance, display)
-            #   key 1: base_value < minvalue -- False < True when sorting, so >= minvalue will come first
+            #   key 1: base_value < min_value -- False < True when sorting, so >= min_value will come first
             #   key 2: scan_value
             #   key 3: honk_value
             #   key 4: distance -- ascending
             #   key 5: display
             key=lambda item: item[1][3]
         )
-        if v[1][0] * efficiency_bonus >= this.minvalue.get() and not v[4]
+        if v[1][0] * efficiency_bonus >= this.min_value.get() and not v[4]
     ]
 
     def format_body(body_name):
         # template: NAME (VALUE, DIST), …
         body_value = int(this.bodies[body_name][1][0] * efficiency_bonus)
         body_distance = this.bodies[body_name][3]
-        if body_value >= this.minvalue.get():
+        if body_value >= this.min_value.get():
             return '%s (up to %s, %s)' % \
                    (body_name.upper(),
                     format_credits(body_value, False),
@@ -510,7 +535,7 @@ def update_display():
         text += '\n'
 
         if valuable_body_names:
-            text += 'Valuable Bodies (> {}):'.format(format_credits(this.minvalue.get())) + '\n'
+            text += 'Valuable Bodies (> {}):'.format(format_credits(this.min_value.get())) + '\n'
             text += '\n'.join([format_body(b) for b in valuable_body_names])
         text += '\n' + 'B#: {} NB#: {}'.format(this.body_count, this.non_body_count)
         this.label['text'] = text
@@ -548,9 +573,9 @@ def unbind_mousewheel(event):
 
 def on_mousewheel(event):
     shift = (event.state & 0x1) != 0
-    if event.num == 4 or event.delta == -120:
+    if event.num == 4 or event.delta == 120:
         scroll = -1
-    if event.num == 5 or event.delta == 120:
+    if event.num == 5 or event.delta == -120:
         scroll = 1
     if shift:
         this.scroll_canvas.xview_scroll(scroll, "units")
