@@ -369,7 +369,7 @@ def journal_entry(cmdr, is_beta, system, station, entry, state):
                         (value, value),
                         (value, value),
                         (honk_value, honk_value),
-                        distancels, True)
+                        distancels, True, False)
                 if not this.honked:
                     this.body_count += 1
 
@@ -406,21 +406,27 @@ def journal_entry(cmdr, is_beta, system, station, entry, state):
                                 (int(mapped_value), int(min_mapped_value)),
                                 (honk_value, min_honk_value),
                                 distancels,
-                                True)
+                                this.bodies[bodyname_insystem][4],
+                                this.bodies[bodyname_insystem][5]
+                            )
                         else:
                             this.bodies[bodyname_insystem] = (
                                 (value, min_value),
                                 (int(mapped_value * efficiency_bonus), int(min_mapped_value * efficiency_bonus)),
                                 (honk_value, min_honk_value),
                                 distancels,
-                                True)
+                                this.bodies[bodyname_insystem][4],
+                                this.bodies[bodyname_insystem][5]
+                            )
                     else:
                         this.bodies[bodyname_insystem] = (
                             (value, min_value),
                             (int(mapped_value * efficiency_bonus), int(min_mapped_value * efficiency_bonus)),
                             (honk_value, min_honk_value),
                             distancels,
-                            False)
+                            False,
+                            False
+                        )
                         this.planet_count += 1
                         this.scans.add(bodyname_insystem)
                         if not this.honked:
@@ -464,9 +470,11 @@ def journal_entry(cmdr, is_beta, system, station, entry, state):
                 final_val,
                 this.bodies[bodyname_insystem][2],
                 this.bodies[bodyname_insystem][3],
-                True)
+                True,
+                this.bodies[bodyname_insystem][5]
+            )
         else:
-            this.bodies[bodyname_insystem] = ((0, 0), (1.25, 1.25), (0, 0), 0, True)
+            this.bodies[bodyname_insystem] = ((0, 0), (1.25, 1.25), (0, 0), 0, True, False)
             this.planet_count += 1
 
         update_display()
@@ -489,6 +497,27 @@ def journal_entry(cmdr, is_beta, system, station, entry, state):
         update_display()
         this.scroll_canvas.yview_scroll(-1, "page")
 
+    elif entry['event'] == 'FSSBodySignals':
+        bodyname = entry['BodyName']
+        if bodyname.startswith(this.starsystem + ' '):
+            bodyname_insystem = bodyname[len(this.starsystem + ' '):]
+        else:
+            bodyname_insystem = bodyname
+        for signal in entry['Signals']:
+            if signal['Type'] == '$SAA_SignalType_Biological;':
+                if bodyname_insystem in this.bodies.keys():
+                    this.bodies[bodyname_insystem] = (
+                        this.bodies[bodyname_insystem][0],
+                        this.bodies[bodyname_insystem][1],
+                        this.bodies[bodyname_insystem][2],
+                        this.bodies[bodyname_insystem][3],
+                        this.bodies[bodyname_insystem][4],
+                        True
+                    )
+                else:
+                    this.bodies[bodyname_insystem] = ((0, 0), (1.25, 1.25), (0, 0), 0, False, True)
+
+
 
 def update_display():
     efficiency_bonus = 1.25
@@ -508,6 +537,12 @@ def update_display():
         )
         if v[1][0] * efficiency_bonus >= this.min_value.get() and not v[4]
     ]
+    exobio_body_names = [
+        k
+        for k, v
+        in this.bodies
+        if v[5] and not v[4]
+    ]
 
     def format_body(body_name):
         # template: NAME (VALUE, DIST), …
@@ -525,7 +560,7 @@ def update_display():
         text = 'Pioneer: Scanning'
         if this.honked:
             text += ' (H)'
-        if this.fully_scanned and len(this.scans) == (this.body_count + this.non_body_count):
+        if this.fully_scanned and len(this.scans) >= this.body_count:
             if this.was_scanned:
                 text += ' (S)'
             else:
@@ -540,6 +575,9 @@ def update_display():
         if valuable_body_names:
             text += 'Valuable Bodies (> {}):'.format(format_credits(this.min_value.get())) + '\n'
             text += '\n'.join([format_body(b) for b in valuable_body_names])
+        if exobio_body_names:
+            text += 'Biological Signals (Unmapped):\n'
+            text += '\n'.join([format_body(b) for b in exobio_body_names])
         text += '\n' + 'B#: {} NB#: {}'.format(this.body_count, this.non_body_count)
         this.label['text'] = text
     else:
