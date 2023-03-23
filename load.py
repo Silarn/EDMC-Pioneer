@@ -13,6 +13,7 @@ from config import config
 from theme import theme
 import locale
 from EDMCLogging import get_main_logger
+import semantic_version
 
 logger = get_main_logger()
 
@@ -28,6 +29,7 @@ this.values_label = None
 this.total_label = None
 this.bodies = {}
 this.odyssey = False
+this.game_version = semantic_version.Version.coerce('0.0.0.0')
 this.min_value = None
 this.shorten_values = None
 this.planet_count = 0
@@ -200,7 +202,7 @@ def get_body_value(k, kt, tm, mass, isFirstDicoverer, isFirstMapper):
     honk_value = value / 3
     min_honk_value = min_value / 3
 
-    if this.odyssey:
+    if this.odyssey or this.game_version.major >= 4:
         mapped_value += (mapped_value * 0.3) if ((mapped_value * 0.3) > 555) else 555
         min_mapped_value += (min_mapped_value * 0.3) if ((min_mapped_value * 0.3) > 555) else 555
 
@@ -341,8 +343,9 @@ def format_ls(ls, space=True):
 
 
 def journal_entry(cmdr, is_beta, system, station, entry, state):
-    if entry['event'] == 'LoadGame':
+    if entry['event'] == 'Fileheader' or entry['event'] == 'LoadGame':
         this.odyssey = entry.get('Odyssey', False)
+        this.game_version = semantic_version.Version.coerce(entry.get('gameversion'))
     elif entry['event'] == 'Location':
         this.starsystem = entry['StarSystem']
     elif entry['event'] == 'Scan':
