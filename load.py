@@ -175,7 +175,7 @@ def get_star_value(k, mass, isFirstDiscoverer):
     return int(value), int(honk_value)
 
 
-# def get_body_value(k: int, mass: float, isFirstDicoverer: bool, isFirstMapper: bool):
+# def get_body_value(k: int, kt: int, tm: int, mass: float, isFirstDicoverer: bool, isFirstMapper: bool):
 def get_body_value(k, kt, tm, mass, isFirstDicoverer, isFirstMapper):
     """
         Adapted from MattG's example code at https://forums.frontier.co.uk/threads/exploration-value-formulae.232000/
