@@ -148,12 +148,12 @@ def get_planetclass_k(planetclass, terraformable):
         base = 9654
         if terraformable:
             terraform = 100677
-            mult = .95
+            mult = .9
     elif planetclass == 'Water world':
         base = 64831
         if terraformable:
             terraform = 116295
-            mult = .9
+            mult = .75
     elif planetclass == 'Earthlike body':
         base = 64831 + 116295  # Terraform is assumed as maximum value
         terraform = 0
@@ -161,7 +161,7 @@ def get_planetclass_k(planetclass, terraformable):
         base = 300
         if terraformable:
             terraform = 93328
-            mult = .95
+            mult = .9
 
     return base, terraform, mult
 
