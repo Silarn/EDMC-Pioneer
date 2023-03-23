@@ -39,6 +39,7 @@ this.scans = set()
 this.map_count = 0
 this.main_star_id = None
 this.main_star = 0
+this.exo_earnings = 0
 this.honked = False
 this.fully_scanned = False
 this.was_scanned = False
@@ -540,7 +541,7 @@ def update_display():
     exobio_body_names = [
         k
         for k, v
-        in this.bodies
+        in this.bodies.items()
         if v[5] and not v[4]
     ]
 
@@ -575,9 +576,11 @@ def update_display():
         if valuable_body_names:
             text += 'Valuable Bodies (> {}):'.format(format_credits(this.min_value.get())) + '\n'
             text += '\n'.join([format_body(b) for b in valuable_body_names])
+            text += '\n'
         if exobio_body_names:
+            logger.debug(exobio_body_names)
             text += 'Biological Signals (Unmapped):\n'
-            text += '\n'.join([format_body(b) for b in exobio_body_names])
+            text += '\n'.join([b for b in exobio_body_names])
         text += '\n' + 'B#: {} NB#: {}'.format(this.body_count, this.non_body_count)
         this.label['text'] = text
     else:
