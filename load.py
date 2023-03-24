@@ -370,7 +370,7 @@ def journal_entry(cmdr, is_beta, system, station, entry, state):
                         (value, value),
                         (value, value),
                         (honk_value, honk_value),
-                        distancels, True, False)
+                        distancels, True, 0)
                 if not this.honked:
                     this.body_count += 1
 
@@ -426,7 +426,7 @@ def journal_entry(cmdr, is_beta, system, station, entry, state):
                             (honk_value, min_honk_value),
                             distancels,
                             False,
-                            False
+                            0
                         )
                         this.planet_count += 1
                         this.scans.add(bodyname_insystem)
@@ -475,7 +475,7 @@ def journal_entry(cmdr, is_beta, system, station, entry, state):
                 this.bodies[bodyname_insystem][5]
             )
         else:
-            this.bodies[bodyname_insystem] = ((0, 0), (1.25, 1.25), (0, 0), 0, True, False)
+            this.bodies[bodyname_insystem] = ((0, 0), (1.25, 1.25), (0, 0), 0, True, 0)
             this.planet_count += 1
 
         update_display()
@@ -513,10 +513,10 @@ def journal_entry(cmdr, is_beta, system, station, entry, state):
                         this.bodies[bodyname_insystem][2],
                         this.bodies[bodyname_insystem][3],
                         this.bodies[bodyname_insystem][4],
-                        True
+                        signal['Count']
                     )
                 else:
-                    this.bodies[bodyname_insystem] = ((0, 0), (1.25, 1.25), (0, 0), 0, False, True)
+                    this.bodies[bodyname_insystem] = ((0, 0), (1.25, 1.25), (0, 0), 0, False, signal['Count'])
 
 
 
@@ -539,10 +539,10 @@ def update_display():
         if v[1][0] * efficiency_bonus >= this.min_value.get() and not v[4]
     ]
     exobio_body_names = [
-        k
+        '%s (%d)' % (k, v[5])
         for k, v
         in this.bodies.items()
-        if v[5] and not v[4]
+        if v[5] > 0 and not v[4]
     ]
 
     def format_body(body_name):
