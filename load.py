@@ -517,6 +517,10 @@ def journal_entry(cmdr, is_beta, system, station, entry, state):
                     )
                 else:
                     this.bodies[bodyname_insystem] = ((0, 0), (1.25, 1.25), (0, 0), 0, False, signal['Count'])
+                    this.planet_count += 1
+                    this.scans.add(bodyname_insystem)
+                    if not this.honked:
+                        this.body_count += 1
 
 
 
