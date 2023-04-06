@@ -545,7 +545,10 @@ def update_display():
     exobio_body_names = [
         '%s (%d)' % (k, v[5])
         for k, v
-        in this.bodies.items()
+        in sorted(
+            this.bodies.items(),
+            key=lambda item: item[1][3]
+        )
         if v[5] > 0 and not v[4]
     ]
 
@@ -562,7 +565,10 @@ def update_display():
             return '%s'
 
     if this.bodies or this.main_star > 0:
-        text = 'Pioneer: Scanning'
+        if this.fully_scanned and len(this.scans) >= this.body_count:
+            text = 'Pioneer:'
+        else:
+            text = 'Pioneer: Scanning'
         if this.honked:
             text += ' (H)'
         if this.fully_scanned and len(this.scans) >= this.body_count:
@@ -580,11 +586,12 @@ def update_display():
         if valuable_body_names:
             text += 'Valuable Bodies (> {}):'.format(format_credits(this.min_value.get())) + '\n'
             text += '\n'.join([format_body(b) for b in valuable_body_names])
+        if valuable_body_names and exobio_body_names:
             text += '\n'
         if exobio_body_names:
             logger.debug(exobio_body_names)
             text += 'Biological Signals (Unmapped):\n'
-            text += '\n'.join([b for b in exobio_body_names])
+            text += ' ⬦ '.join([b for b in exobio_body_names])
         text += '\n' + 'B#: {} NB#: {}'.format(this.body_count, this.non_body_count)
         this.label['text'] = text
     else:
