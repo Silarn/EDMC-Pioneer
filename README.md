@@ -11,6 +11,8 @@ bonus they provide, bonuses for being the first to fully map or scan the system,
 value. Finally, the overall current (based on scan and map status) and maximum (if fully mapped) values are displayed
 at the bottom of the pane.
 
+Finally, as a recent addition, Pioneer will also display a list of any unmapped bodies with biological signals with the number of signals included. (I may distance to this display.)
+
 ## Requirements
 * EDMC version 5 and above
 
@@ -31,11 +33,12 @@ Value calculations based on [information by MattG](https://forums.frontier.co.uk
 The overall goal is to make this a valuable tool for explorers in Elite Dangerous, highlighting valuable bodies in a
 reasonably compact format.
 
-Currently no real body data is preserved except for the overall value and distance of each body. My plan is to extend
-this to track more body data so that I can display body type, landability, and atmospherics in order to better indicate
-interesting bodies, such as a chance for biological samples.
+Currently no real body data is preserved except for the overall value and distance of each body. My next possible project would
+be to calculate the habitable zone and attempt to estimate the terraform bonus based on that range. My assumption is that the
+bonus is highest at the center of this zone. This hasn't been confirmed, but I will use this to test better value estimates.
 
-I also intend to offer more configuration options, like an ability to hide the scroll box of individual body values.
+I also intend to offer more configuration options, like an ability to hide the scroll box of individual body values. Suggestions
+and requests are welcome.
 
 ## License
 
