@@ -11,7 +11,8 @@ bonus they provide, bonuses for being the first to fully map or scan the system,
 value. Finally, the overall current (based on scan and map status) and maximum (if fully mapped) values are displayed
 at the bottom of the pane.
 
-Finally, as a recent addition, Pioneer will also display a list of any unmapped bodies with biological signals with the number of signals included. (I may distance to this display.)
+Finally, as a recent addition, Pioneer will also display a list of any unmapped bodies with biological signals with
+the number of signals included. (I may add distance to this display.)
 
 ## Requirements
 * EDMC version 5 and above
