@@ -589,9 +589,16 @@ def update_display():
         if valuable_body_names and exobio_body_names:
             text += '\n'
         if exobio_body_names:
-            logger.debug(exobio_body_names)
             text += 'Biological Signals (Unmapped):\n'
-            text += ' ⬦ '.join([b for b in exobio_body_names])
+            while True:
+                exo_list = exobio_body_names[:5]
+                exobio_body_names = exobio_body_names[5:]
+                text += ' ⬦ '.join([b for b in exo_list])
+                if len(exobio_body_names) == 0:
+                    break
+                else:
+                    text += '\n'
+
         text += '\n' + 'B#: {} NB#: {}'.format(this.body_count, this.non_body_count)
         this.label['text'] = text
     else:
