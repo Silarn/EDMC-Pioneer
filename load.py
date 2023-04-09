@@ -32,6 +32,8 @@ this.odyssey = False
 this.game_version = semantic_version.Version.coerce('0.0.0.0')
 this.min_value = None
 this.shorten_values = None
+this.show_details = None
+this.show_biological = None
 this.planet_count = 0
 this.body_count = 0
 this.non_body_count = 0
@@ -93,22 +95,32 @@ def plugin_app(parent: tk.Frame):
 
 def plugin_prefs(parent, cmdr, is_beta):
     frame = nb.Frame(parent)
-    nb.Label(frame, text='Minimum Value:').grid(row=0, column=0, sticky=tk.W)
+    nb.Label(frame, text='Valuable Body Minimum:').grid(row=0, column=0, sticky=tk.W)
     nb.Entry(frame, textvariable=this.min_value).grid(row=0, column=1, columnspan=2, sticky=tk.W)
     nb.Label(frame, text='Cr').grid(row=0, column=3, sticky=tk.W)
     nb.Checkbutton(
         frame,
-        # LANG: Label for checkbox to utilise alternative Coriolis URL method
-        text='Shorted credit values',
+        text='Shorten credit values (thousands, millions)',
         variable=this.shorten_values
     ).grid(row=1, columnspan=3, sticky=tk.W)
-    nb.Label(frame, text='Shorten Credit Values')
+    nb.Checkbutton(
+        frame,
+        text='Show detailed body values (scrollbox)',
+        variable=this.show_details
+    ).grid(row=2, columnspan=3, sticky=tk.W)
+    nb.Checkbutton(
+        frame,
+        text='Show unmapped bodies with biological signals',
+        variable=this.show_biological
+    ).grid(row=3, columnspan=3, sticky=tk.W)
     return frame
 
 
 def prefs_changed(cmdr, is_beta):
     config.set('pioneer_min_value', this.min_value.get())
     config.set('pioneer_shorten', this.shorten_values.get())
+    config.set('pioneer_details', this.show_details.get())
+    config.set('pioneer_biological', this.show_biological.get())
     update_display()
 
 
@@ -120,6 +132,8 @@ def parse_config():
     else:
         this.min_value = tk.IntVar(value=config.get_int(key='pioneer_min_value', default=400000))
     this.shorten_values = tk.BooleanVar(value=config.get_bool(key='pioneer_shorten', default=True))
+    this.show_details = tk.BooleanVar(value=config.get_bool(key='pioneer_details', default=True))
+    this.show_biological = tk.BooleanVar(value=config.get_bool(key='pioneer_biological', default=True))
 
 
 def get_starclass_k(starclass):
@@ -586,9 +600,9 @@ def update_display():
         if valuable_body_names:
             text += 'Valuable Bodies (> {}):'.format(format_credits(this.min_value.get())) + '\n'
             text += '\n'.join([format_body(b) for b in valuable_body_names])
-        if valuable_body_names and exobio_body_names:
+        if valuable_body_names and exobio_body_names and this.show_biological.get():
             text += '\n'
-        if exobio_body_names:
+        if exobio_body_names and this.show_biological.get():
             text += 'Biological Signals (Unmapped):\n'
             while True:
                 exo_list = exobio_body_names[:5]
@@ -615,6 +629,13 @@ def update_display():
             format_credits(total_value) if total_value > 0 else "N/A")
         this.total_label['text'] += '\nMaximum System Value: {}'.format(
             format_credits(max_value) if total_value > 0 else "N/A")
+
+    if this.show_details.get():
+        this.scroll_canvas.grid()
+        this.scrollbar.grid()
+    else:
+        this.scroll_canvas.grid_remove()
+        this.scrollbar.grid_remove()
 
 
 def bind_mousewheel(event):
