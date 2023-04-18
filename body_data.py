@@ -1,0 +1,62 @@
+class BodyData:
+    def __init__(self, name):
+        self.name: str = name
+        self.type: str = ''
+        self.terraformable: bool = False
+        self.distance: float = 0
+        self.base_value: tuple[int, int] = (0, 0)
+        self.mapped_value: tuple[float, float] = (1.25, 1.25)
+        self.honk_value: tuple[int, int] = (0, 0)
+        self.mapped: bool = False
+        self.bio_signals: int = 0
+
+    def get_name(self):
+        return self.name
+
+    def get_base_values(self):
+        return self.base_value[0], self.base_value[1]
+
+    def set_base_values(self, value: int, min_value: int):
+        self.base_value = (value, min_value)
+
+    def get_mapped_values(self):
+        return self.mapped_value[0], self.mapped_value[1]
+
+    def set_mapped_values(self, value: float, min_value: float):
+        self.mapped_value = (value, min_value)
+
+    def get_honk_values(self):
+        return self.honk_value[0], self.honk_value[1]
+
+    def set_honk_values(self, value: int, min_value: int):
+        self.honk_value = (value, min_value)
+
+    def is_mapped(self):
+        return self.mapped
+
+    def set_mapped(self, value: bool):
+        self.mapped = value
+
+    def get_bio_signals(self):
+        return self.bio_signals
+
+    def set_bio_signals(self, value: int):
+        self.bio_signals = value
+
+    def get_distance(self):
+        return self.distance
+
+    def set_distance(self, value: float):
+        self.distance = value
+
+    def get_type(self):
+        return self.type
+
+    def set_type(self, value: str):
+        self.type = value
+
+    def is_terraformable(self):
+        return self.terraformable
+
+    def set_terraformable(self, value: bool):
+        self.terraformable = value

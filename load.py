@@ -15,6 +15,8 @@ import locale
 from EDMCLogging import get_main_logger
 import semantic_version
 
+from body_data import BodyData
+
 logger = get_main_logger()
 
 VERSION = '0.9'
@@ -27,7 +29,7 @@ this.scrollable_frame = None
 this.label = None
 this.values_label = None
 this.total_label = None
-this.bodies = {}
+this.bodies = {} # type: dict[str, BodyData]
 this.odyssey = False
 this.game_version = semantic_version.Version.coerce('0.0.0.0')
 this.min_value = None
@@ -254,41 +256,48 @@ def calc_system_value():
     max_value += this.main_star
     min_max_value += this.main_star
     bodies_text = ""
-    for k, v in sorted(this.bodies.items(), key=lambda item: item[1][3]):
-        bodies_text += "{}:".format(k) + "\n"
-        if v[4] is True:
-            val_text = "{} - {}".format(format_credits(v[1][1]), format_credits(v[1][0])) if v[1][1] != v[1][0] \
-                else "{}".format(format_credits(v[1][0]))
+    for body_name, body_data in sorted(this.bodies.items(), key=lambda item: item[1].get_distance()):
+        bodies_text += "{} - {}{}):".format(body_name,
+                                           body_data.get_type(),
+                                           " (T)" if body_data.is_terraformable() else "") + "\n"
+        if body_data.is_mapped() is True:
+            val_text = "{} - {}".format(format_credits(body_data.get_mapped_values()[1]),
+                                        format_credits(body_data.get_mapped_values()[0])) \
+                if body_data.get_mapped_values()[1] != body_data.get_mapped_values()[0] \
+                else "{}".format(format_credits(body_data.get_mapped_values()[0]))
             bodies_text += "Current Value (Max): {}".format(val_text) + "\n"
-            max_value += v[1][0]
-            min_max_value += v[1][1]
-            value_sum += v[1][0]
-            min_value_sum += v[1][1]
+            max_value += body_data.get_mapped_values()[0]
+            min_max_value += body_data.get_mapped_values()[1]
+            value_sum += body_data.get_mapped_values()[0]
+            min_value_sum += body_data.get_mapped_values()[1]
         else:
-            val_text = "{} - {}".format(format_credits(v[0][1]), format_credits(v[0][0])) if v[0][1] != v[0][0] \
-                else "{}".format(format_credits(v[0][0]))
+            val_text = "{} - {}".format(format_credits(body_data.get_base_values()[1]),
+                                        format_credits(body_data.get_base_values()[0])) \
+                if body_data.get_base_values()[1] != body_data.get_base_values()[0] \
+                else "{}".format(format_credits(body_data.get_base_values()[0]))
             max_val_text = "{} - {}".format(
-                format_credits(int(v[1][1] * efficiency_bonus)),
-                format_credits(int(v[1][0] * efficiency_bonus))
-            ) if v[1][1] != v[1][0] \
-                else "{}".format(format_credits(int(v[1][0] * efficiency_bonus)))
+                format_credits(int(body_data.get_mapped_values()[1] * efficiency_bonus)),
+                format_credits(int(body_data.get_mapped_values()[0] * efficiency_bonus))
+            ) if body_data.get_mapped_values()[1] != body_data.get_mapped_values()[0] \
+                else "{}".format(format_credits(int(body_data.get_mapped_values()[0] * efficiency_bonus)))
             bodies_text += "Current Value: {}\nMax Value: {}".format(val_text, max_val_text) + "\n"
-            max_value += int(v[1][0] * efficiency_bonus)
-            min_max_value += int(v[1][1] * efficiency_bonus)
-            value_sum += v[0][0]
-            min_value_sum += v[0][1]
+            max_value += int(body_data.get_mapped_values()[0] * efficiency_bonus)
+            min_max_value += int(body_data.get_mapped_values()[1] * efficiency_bonus)
+            value_sum += body_data.get_base_values()[0]
+            min_value_sum += body_data.get_base_values()[1]
         if this.honked:
-            if v[2][0] != v[2][1]:
+            if body_data.get_honk_values()[0] != body_data.get_honk_values()[1]:
                 bodies_text += "Honk Value: {} - {}".format(
-                    format_credits(v[2][1]), format_credits(v[2][0])) + "\n"
+                    format_credits(body_data.get_honk_values()[1]),
+                    format_credits(body_data.get_honk_values()[0])) + "\n"
             else:
-                bodies_text += "Honk Value: {}".format(format_credits(v[2][0])) + "\n"
-            value_sum += v[2][0]
-            min_value_sum += v[2][1]
-            honk_sum += v[2][0]
-            min_honk_sum += v[2][1]
-        max_value += v[2][0]
-        min_max_value += v[2][1]
+                bodies_text += "Honk Value: {}".format(format_credits(body_data.get_honk_values()[0])) + "\n"
+            value_sum += body_data.get_honk_values()[0]
+            min_value_sum += body_data.get_honk_values()[1]
+            honk_sum += body_data.get_honk_values()[0]
+            min_honk_sum += body_data.get_honk_values()[1]
+        max_value += body_data.get_honk_values()[0]
+        min_max_value += body_data.get_honk_values()[1]
         bodies_text += "------------------" + "\n"
     this.values_label["text"] = "{} (Main star):\n   {} + {} = {}".format(
         this.starsystem,
@@ -357,6 +366,19 @@ def format_ls(ls, space=True):
     return format_unit(ls, 'ls', space)
 
 
+def get_bodyname(fullname: str):
+    if fullname.startswith(this.starsystem + ' '):
+        bodyname = fullname[len(this.starsystem + ' '):]
+    else:
+        bodyname = fullname
+    return bodyname
+
+
+def get_star_label(star_class: str):
+    if star_class.startswith("D"):
+        name = "White dwarf"
+
+
 def journal_entry(cmdr, is_beta, system, station, entry, state):
     if entry['event'] == 'Fileheader' or entry['event'] == 'LoadGame':
         this.odyssey = entry.get('Odyssey', False)
@@ -364,11 +386,7 @@ def journal_entry(cmdr, is_beta, system, station, entry, state):
     elif entry['event'] == 'Location':
         this.starsystem = entry['StarSystem']
     elif entry['event'] == 'Scan':
-        bodyname = entry['BodyName']
-        if bodyname.startswith(this.starsystem + ' '):
-            bodyname_insystem = bodyname[len(this.starsystem + ' '):]
-        else:
-            bodyname_insystem = bodyname
+        bodyname_insystem = get_bodyname(entry['BodyName'])
         if 'PlanetClass' not in entry:
             # That's no moon!
             if 'StarType' in entry:
@@ -380,11 +398,14 @@ def journal_entry(cmdr, is_beta, system, station, entry, state):
                 if entry['BodyID'] == this.main_star_id:
                     this.main_star = value
                 else:
-                    this.bodies[bodyname_insystem] = (
-                        (value, value),
-                        (value, value),
-                        (honk_value, honk_value),
-                        distancels, True, 0)
+                    body = BodyData(bodyname_insystem)
+                    body.set_base_values(value, value)
+                    body.set_mapped_values(value, value)
+                    body.set_honk_values(honk_value, honk_value)
+                    body.set_distance(distancels)
+                    body.set_type(entry['StarType'])
+                    body.set_mapped(True)
+                    this.bodies[bodyname_insystem] = body
                 if not this.honked:
                     this.body_count += 1
 
@@ -414,38 +435,19 @@ def journal_entry(cmdr, is_beta, system, station, entry, state):
                     min_value, min_mapped_value, min_honk_value = \
                         get_body_value(k, kt, tm, mass, not was_discovered, not was_mapped)
 
-                    if bodyname_insystem in this.bodies:
-                        if this.bodies[bodyname_insystem][1][0] == 0:
-                            this.bodies[bodyname_insystem] = (
-                                (value, min_value),
-                                (int(mapped_value), int(min_mapped_value)),
-                                (honk_value, min_honk_value),
-                                distancels,
-                                this.bodies[bodyname_insystem][4],
-                                this.bodies[bodyname_insystem][5]
-                            )
-                        else:
-                            this.bodies[bodyname_insystem] = (
-                                (value, min_value),
-                                (int(mapped_value * efficiency_bonus), int(min_mapped_value * efficiency_bonus)),
-                                (honk_value, min_honk_value),
-                                distancels,
-                                this.bodies[bodyname_insystem][4],
-                                this.bodies[bodyname_insystem][5]
-                            )
-                    else:
-                        this.bodies[bodyname_insystem] = (
-                            (value, min_value),
-                            (int(mapped_value * efficiency_bonus), int(min_mapped_value * efficiency_bonus)),
-                            (honk_value, min_honk_value),
-                            distancels,
-                            False,
-                            0
-                        )
+                    if bodyname_insystem not in this.bodies:
+                        this.bodies[bodyname_insystem] = BodyData(bodyname_insystem)
                         this.planet_count += 1
                         this.scans.add(bodyname_insystem)
                         if not this.honked:
                             this.body_count += 1
+                    this.bodies[bodyname_insystem].set_base_values(value, min_value)
+                    this.bodies[bodyname_insystem].set_honk_values(honk_value, min_honk_value)
+                    this.bodies[bodyname_insystem].set_distance(distancels)
+                    if this.bodies[bodyname_insystem].get_mapped_values()[1] == 0:
+                        this.bodies[bodyname_insystem].set_mapped_values(int(mapped_value), int(min_mapped_value))
+                    else:
+                        this.bodies[bodyname_insystem].set_mapped_values(int(mapped_value * efficiency_bonus), int(min_mapped_value * efficiency_bonus))
 
                 update_display()
 
@@ -468,29 +470,19 @@ def journal_entry(cmdr, is_beta, system, station, entry, state):
         used = int(entry['ProbesUsed'])
         was_efficient = True if target >= used else False
         this.map_count += 1
-        bodyname = entry['BodyName']
-        if bodyname.startswith(this.starsystem + ' '):
-            bodyname_insystem = bodyname[len(this.starsystem + ' '):]
-        else:
-            bodyname_insystem = bodyname
-        if bodyname_insystem in this.bodies.keys():
-            # body exists, only replace its value with a "hidden" marker
-            map_val = this.bodies[bodyname_insystem][1]
-            final_val = (
-                int(map_val[0] * efficiency_bonus) if was_efficient else map_val[0],
-                int(map_val[1] * efficiency_bonus) if was_efficient else map_val[1]
-            )
-            this.bodies[bodyname_insystem] = (
-                this.bodies[bodyname_insystem][0],
-                final_val,
-                this.bodies[bodyname_insystem][2],
-                this.bodies[bodyname_insystem][3],
-                True,
-                this.bodies[bodyname_insystem][5]
-            )
-        else:
-            this.bodies[bodyname_insystem] = ((0, 0), (1.25, 1.25), (0, 0), 0, True, 0)
+        bodyname_insystem = get_bodyname(entry['BodyName'])
+        if bodyname_insystem not in this.bodies.keys():
+            this.bodies[bodyname_insystem] = BodyData(bodyname_insystem)
             this.planet_count += 1
+        else:
+            # body exists, only replace its value with a "hidden" marker
+            map_val, map_val_max = this.bodies[bodyname_insystem].get_mapped_values()
+            final_val = (
+                int(map_val * efficiency_bonus) if was_efficient else map_val,
+                int(map_val_max * efficiency_bonus) if was_efficient else map_val_max
+            )
+            this.bodies[bodyname_insystem].set_mapped_values(final_val[0], final_val[1])
+        this.bodies[bodyname_insystem].set_mapped(True)
 
         update_display()
 
@@ -513,63 +505,44 @@ def journal_entry(cmdr, is_beta, system, station, entry, state):
         this.scroll_canvas.yview_scroll(-1, "page")
 
     elif entry['event'] == 'FSSBodySignals':
-        bodyname = entry['BodyName']
-        if bodyname.startswith(this.starsystem + ' '):
-            bodyname_insystem = bodyname[len(this.starsystem + ' '):]
-        else:
-            bodyname_insystem = bodyname
+        bodyname_insystem = get_bodyname(entry['BodyName'])
         for signal in entry['Signals']:
             if signal['Type'] == '$SAA_SignalType_Biological;':
-                if bodyname_insystem in this.bodies.keys():
-                    this.bodies[bodyname_insystem] = (
-                        this.bodies[bodyname_insystem][0],
-                        this.bodies[bodyname_insystem][1],
-                        this.bodies[bodyname_insystem][2],
-                        this.bodies[bodyname_insystem][3],
-                        this.bodies[bodyname_insystem][4],
-                        signal['Count']
-                    )
-                else:
-                    this.bodies[bodyname_insystem] = ((0, 0), (1.25, 1.25), (0, 0), 0, False, signal['Count'])
+                if bodyname_insystem not in this.bodies.keys():
+                    this.bodies[bodyname_insystem] = BodyData(bodyname_insystem)
                     this.planet_count += 1
                     this.scans.add(bodyname_insystem)
                     if not this.honked:
                         this.body_count += 1
+                this.bodies[bodyname_insystem].set_bio_signals(signal['Count'])
 
 
 
 def update_display():
     efficiency_bonus = 1.25
     valuable_body_names = [
-        k
-        for k, v
+        body_name
+        for body_name, body_data
         in sorted(
             this.bodies.items(),
-            # multi-key sorting:
-            #   use only the value from the dict (item[1]), which is a tuple (credit_value, k, distance, display)
-            #   key 1: base_value < min_value -- False < True when sorting, so >= min_value will come first
-            #   key 2: scan_value
-            #   key 3: honk_value
-            #   key 4: distance -- ascending
-            #   key 5: display
-            key=lambda item: item[1][3]
+            key=lambda item: item[1].get_distance()
         )
-        if v[1][0] * efficiency_bonus >= this.min_value.get() and not v[4]
+        if body_data.get_mapped_values()[0] * efficiency_bonus >= this.min_value.get() and not body_data.is_mapped()
     ]
     exobio_body_names = [
-        '%s (%d)' % (k, v[5])
-        for k, v
+        '%s (%d)' % (body_name, body_data.get_bio_signals())
+        for body_name, body_data
         in sorted(
             this.bodies.items(),
-            key=lambda item: item[1][3]
+            key=lambda item: item[1].get_distance()
         )
-        if v[5] > 0 and not v[4]
+        if body_data.get_bio_signals() > 0 and not body_data.is_mapped()
     ]
 
     def format_body(body_name):
         # template: NAME (VALUE, DIST), …
-        body_value = int(this.bodies[body_name][1][0] * efficiency_bonus)
-        body_distance = this.bodies[body_name][3]
+        body_value = int(this.bodies[body_name].get_mapped_values()[0] * efficiency_bonus)
+        body_distance = this.bodies[body_name].get_distance()
         if body_value >= this.min_value.get():
             return '%s (up to %s, %s)' % \
                    (body_name.upper(),
@@ -656,6 +629,7 @@ def unbind_mousewheel(event):
 
 def on_mousewheel(event):
     shift = (event.state & 0x1) != 0
+    scroll = 0
     if event.num == 4 or event.delta == 120:
         scroll = -1
     if event.num == 5 or event.delta == -120:
