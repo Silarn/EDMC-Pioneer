@@ -461,7 +461,7 @@ def journal_entry(cmdr, is_beta, system, station, entry, state):
             # That's no moon!
             if 'StarType' in entry:
                 mass = entry['StellarMass']
-                was_discovered = False if navbeacon else bool(entry['WasDiscovered'])
+                was_discovered = True if navbeacon else bool(entry['WasDiscovered'])
                 distancels = float(entry['DistanceFromArrivalLS'])
                 k = get_starclass_k(entry['StarType'])
                 value, honk_value = get_star_value(k, mass, not was_discovered)
