@@ -383,9 +383,11 @@ def get_star_label(star_class: str, subclass: str, luminosity: str = None):
     if luminosity == "Ia0":
         star_type = "hypergiant"
     elif luminosity.startswith("IV"):
-        star_type = "giant"
+        star_type = "subgiant"
     elif luminosity.startswith("III"):
         star_type = "bright giant"
+    elif luminosity.startswith("II"):
+        star_type = "giant"
     elif luminosity.startswith("I"):
         star_type = "supergiant"
     if star_class.startswith("D"):
