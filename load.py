@@ -371,7 +371,7 @@ def format_ls(ls, space=True):
     return format_unit(ls, 'ls', space)
 
 
-def get_bodyname(fullname: str):
+def get_bodyname(fullname: str = ""):
     if fullname.startswith(this.starsystem + ' '):
         bodyname = fullname[len(this.starsystem + ' '):]
     else:
@@ -379,7 +379,7 @@ def get_bodyname(fullname: str):
     return bodyname
 
 
-def get_star_label(star_class: str, subclass: str, luminosity: str):
+def get_star_label(star_class: str = "", subclass: str = "", luminosity: str = ""):
     name = "Star"
     star_type = "main-sequence"
     if luminosity == "Ia0":
@@ -397,28 +397,33 @@ def get_star_label(star_class: str, subclass: str, luminosity: str):
     elif star_class == "H":
         name = "Black hole"
     elif star_class == "SupermassiveBlackHole":
+        star_class = "H"
         name = "Supermassive black hole"
     elif star_class == "N":
         name = "Neutron star"
     elif star_class == "O":
         name = "Luminous blue {} star"
-    elif star_class == "O":
-        name = "Luminous blue {} star"
-    elif star_class == "B":
+    elif star_class in ["B", "B_BlueWhiteSuperGiant"]:
+        star_class = "B"
         name = "Blue {} star"
-    elif star_class == "A":
+    elif star_class in ["A", "A_BlueWhiteSuperGiant"]:
+        star_class = "A"
         name = "White-blue {} star"
-    elif star_class == "F":
+    elif star_class in ["F", "F_WhiteSuperGiant"]:
+        star_class = "F"
         name = "White {} star"
-    elif star_class == "G":
+    elif star_class in ["G", "G_WhiteSuperGiant"]:
+        star_class = "G"
         name = "White-yellow {} star"
-    elif star_class == "K":
+    elif star_class in ["K", "K_OrangeGiant"]:
+        star_class = "K"
         name = "Yellow-orange {} star"
     elif star_class.startswith("W"):
         name = "Wolf-Rayet star"
     elif star_class.startswith("C"):
         name = "Carbon star"
-    elif star_class == "M":
+    elif star_class in ["M", "M_RedSuperGiant", "M_RedGiant"]:
+        star_class = "M"
         if star_type == "main-sequence":
             star_type = "dwarf"
         name = "Red {} star"
@@ -438,7 +443,7 @@ def get_star_label(star_class: str, subclass: str, luminosity: str):
         name = "Cool giant zirconium-monoxide star"
 
     final_name = name.format(star_type)
-    return "{} ({} {} {})".format(final_name, star_class, subclass, luminosity)
+    return "{} ({}{} {})".format(final_name, star_class, subclass, luminosity)
 
 
 def journal_entry(cmdr, is_beta, system, station, entry, state):
@@ -449,11 +454,14 @@ def journal_entry(cmdr, is_beta, system, station, entry, state):
         this.starsystem = entry['StarSystem']
     elif entry['event'] == 'Scan':
         bodyname_insystem = get_bodyname(entry['BodyName'])
+        navbeacon = False
+        if entry['ScanType'] == 'NavBeaconDetail':
+            navbeacon = True
         if 'PlanetClass' not in entry:
             # That's no moon!
             if 'StarType' in entry:
                 mass = entry['StellarMass']
-                was_discovered = bool(entry['WasDiscovered'])
+                was_discovered = False if navbeacon else bool(entry['WasDiscovered'])
                 distancels = float(entry['DistanceFromArrivalLS'])
                 k = get_starclass_k(entry['StarType'])
                 value, honk_value = get_star_value(k, mass, not was_discovered)
@@ -472,10 +480,11 @@ def journal_entry(cmdr, is_beta, system, station, entry, state):
                     body.set_luminosity(entry['Luminosity'])
                     body.set_mapped(True)
                     this.bodies[bodyname_insystem] = body
+
                 if not this.honked:
                     this.body_count += 1
 
-            if bool(entry["WasDiscovered"]):
+            if bool(entry["WasDiscovered"]) or navbeacon:
                 this.was_scanned = True
             this.scans.add(bodyname_insystem)
             update_display()
@@ -491,8 +500,8 @@ def journal_entry(cmdr, is_beta, system, station, entry, state):
                     distancels = float(entry['DistanceFromArrivalLS'])
                     planetclass = entry['PlanetClass']
                     mass = float(entry['MassEM'])
-                    was_discovered = bool(entry['WasDiscovered'])
-                    was_mapped = bool(entry['WasMapped'])
+                    was_discovered = True if navbeacon else bool(entry['WasDiscovered'])
+                    was_mapped = True if navbeacon else bool(entry['WasMapped'])
                     this.was_scanned = True if was_discovered else this.was_scanned
                     this.was_mapped = True if was_mapped else this.was_mapped
 
@@ -557,7 +566,7 @@ def journal_entry(cmdr, is_beta, system, station, entry, state):
     elif entry['event'] == 'FSDJump':
         if 'StarSystem' in entry:
             this.starsystem = entry['StarSystem']
-        this.main_star_id = entry['BodyID']
+        this.main_star_id = entry['BodyID'] if 'BodyID' in entry else 0
         this.main_star = 0
         this.main_star_name = "Star"
         this.bodies = {}
