@@ -258,7 +258,7 @@ def calc_system_value():
     min_max_value += this.main_star
     bodies_text = ""
     for body_name, body_data in sorted(this.bodies.items(), key=lambda item: item[1].get_distance()):
-        bodies_text += "{} - ({}{}):".format(body_name,
+        bodies_text += "{} - {}{}:".format(body_name,
                                             body_data.get_type() if not body_data.is_star() else
                                             get_star_label(body_data.get_type(), body_data.get_luminosity()),
                                             " (T)" if body_data.is_terraformable() else "") + "\n"
@@ -377,19 +377,23 @@ def get_bodyname(fullname: str):
     return bodyname
 
 
-def get_star_label(star_class: str, luminosity: str = None):
+def get_star_label(star_class: str, subclass: str, luminosity: str = None):
     name = "Star"
-    type = "main-sequence"
+    star_type = "main-sequence"
     if luminosity == "Ia0":
-        type = "hypergiant"
-    elif luminosity.startswith("IV") or luminosity == "III":
-        name = "giant"
+        star_type = "hypergiant"
+    elif luminosity.startswith("IV"):
+        star_type = "giant"
+    elif luminosity.startswith("III"):
+        star_type = "bright giant"
     elif luminosity.startswith("I"):
-        name = "supergiant"
+        star_type = "supergiant"
     if star_class.startswith("D"):
         name = "White dwarf"
     elif star_class == "H":
         name = "Black hole"
+    elif star_class == "SupermassiveBlackHole":
+        name = "Supermassive black hole"
     elif star_class == "N":
         name = "Neutron star"
     elif star_class == "O":
@@ -411,8 +415,8 @@ def get_star_label(star_class: str, luminosity: str = None):
     elif star_class.startswith("C"):
         name = "Carbon star"
     elif star_class == "M":
-        if type == "main-sequence":
-            type = "dwarf"
+        if star_type == "main-sequence":
+            star_type = "dwarf"
         name = "Red {} star"
     elif star_class == "HeBe":
         name = "Herbig Ae/Be star"
@@ -429,8 +433,8 @@ def get_star_label(star_class: str, luminosity: str = None):
     elif star_class == "S":
         name = "Cool giant zirconium-monoxide star"
 
-    final_name = name.format(type)
-    return "{} ({}{})".format(final_name, star_class, " " + luminosity if luminosity else "")
+    final_name = name.format(star_type)
+    return "{} ({} {} {})".format(final_name, star_class, subclass, luminosity)
 
 
 def journal_entry(cmdr, is_beta, system, station, entry, state):
@@ -451,7 +455,7 @@ def journal_entry(cmdr, is_beta, system, station, entry, state):
                 value, honk_value = get_star_value(k, mass, not was_discovered)
                 if entry['BodyID'] == this.main_star_id:
                     this.main_star = value
-                    this.main_star_name = get_star_label(entry['StarType'], entry['Luminosity'])
+                    this.main_star_name = get_star_label(entry['StarType'], entry['Subclass'], entry['Luminosity'])
                 else:
                     body = BodyData(bodyname_insystem)
                     body.set_base_values(value, value)
@@ -460,6 +464,7 @@ def journal_entry(cmdr, is_beta, system, station, entry, state):
                     body.set_distance(distancels)
                     body.set_star(True)
                     body.set_type(entry['StarType'])
+                    body.set_subclass(entry['Subclass'])
                     body.set_luminosity(entry['Luminosity'])
                     body.set_mapped(True)
                     this.bodies[bodyname_insystem] = body

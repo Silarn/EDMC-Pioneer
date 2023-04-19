@@ -2,6 +2,7 @@ class BodyData:
     def __init__(self, name):
         self.name: str = name
         self.type: str = ''
+        self.subclass: str = ''
         self.luminosity: str = ''
         self.terraformable: bool = False
         self.distance: float = 0
@@ -56,6 +57,12 @@ class BodyData:
 
     def set_type(self, value: str):
         self.type = value
+
+    def get_subclass(self):
+        return self.subclass
+
+    def set_subclass(self, value: str):
+        self.subclass = value
 
     def get_luminosity(self):
         return self.luminosity
