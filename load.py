@@ -260,7 +260,9 @@ def calc_system_value():
     for body_name, body_data in sorted(this.bodies.items(), key=lambda item: item[1].get_distance()):
         bodies_text += "{} - {}{}:".format(body_name,
                                             body_data.get_type() if not body_data.is_star() else
-                                            get_star_label(body_data.get_type(), body_data.get_luminosity()),
+                                            get_star_label(body_data.get_type(),
+                                                           body_data.get_subclass(),
+                                                           body_data.get_luminosity()),
                                             " (T)" if body_data.is_terraformable() else "") + "\n"
         if body_data.is_mapped() is True:
             val_text = "{} - {}".format(format_credits(body_data.get_mapped_values()[1]),
@@ -377,7 +379,7 @@ def get_bodyname(fullname: str):
     return bodyname
 
 
-def get_star_label(star_class: str, subclass: str, luminosity: str = None):
+def get_star_label(star_class: str, subclass: str, luminosity: str):
     name = "Star"
     star_type = "main-sequence"
     if luminosity == "Ia0":
