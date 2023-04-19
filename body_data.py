@@ -2,6 +2,7 @@ class BodyData:
     def __init__(self, name):
         self.name: str = name
         self.type: str = ''
+        self.luminosity: str = ''
         self.terraformable: bool = False
         self.distance: float = 0
         self.base_value: tuple[int, int] = (0, 0)
@@ -9,6 +10,7 @@ class BodyData:
         self.honk_value: tuple[int, int] = (0, 0)
         self.mapped: bool = False
         self.bio_signals: int = 0
+        self.is_a_star: bool = False
 
     def get_name(self):
         return self.name
@@ -55,8 +57,20 @@ class BodyData:
     def set_type(self, value: str):
         self.type = value
 
+    def get_luminosity(self):
+        return self.luminosity
+
+    def set_luminosity(self, value: str):
+        self.luminosity = value
+
     def is_terraformable(self):
         return self.terraformable
 
     def set_terraformable(self, value: bool):
         self.terraformable = value
+
+    def is_star(self):
+        return self.is_a_star
+
+    def set_star(self, value: bool):
+        self.is_a_star = value

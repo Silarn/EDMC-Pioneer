@@ -43,6 +43,7 @@ this.scans = set()
 this.map_count = 0
 this.main_star_id = None
 this.main_star = 0
+this.main_star_name = "Star"
 this.exo_earnings = 0
 this.honked = False
 this.fully_scanned = False
@@ -257,9 +258,10 @@ def calc_system_value():
     min_max_value += this.main_star
     bodies_text = ""
     for body_name, body_data in sorted(this.bodies.items(), key=lambda item: item[1].get_distance()):
-        bodies_text += "{} - {}{}):".format(body_name,
-                                           body_data.get_type(),
-                                           " (T)" if body_data.is_terraformable() else "") + "\n"
+        bodies_text += "{} - ({}{}):".format(body_name,
+                                            body_data.get_type() if not body_data.is_star() else
+                                            get_star_label(body_data.get_type(), body_data.get_luminosity()),
+                                            " (T)" if body_data.is_terraformable() else "") + "\n"
         if body_data.is_mapped() is True:
             val_text = "{} - {}".format(format_credits(body_data.get_mapped_values()[1]),
                                         format_credits(body_data.get_mapped_values()[0])) \
@@ -299,8 +301,9 @@ def calc_system_value():
         max_value += body_data.get_honk_values()[0]
         min_max_value += body_data.get_honk_values()[1]
         bodies_text += "------------------" + "\n"
-    this.values_label["text"] = "{} (Main star):\n   {} + {} = {}".format(
+    this.values_label["text"] = "{} (Main star):\n   {}\n   {} + {} = {}".format(
         this.starsystem,
+        this.main_star_name,
         format_credits(this.main_star),
         format_credits(honk_sum) if honk_sum == min_honk_sum else "{} to {}".format(
             format_credits(min_honk_sum),
@@ -374,9 +377,60 @@ def get_bodyname(fullname: str):
     return bodyname
 
 
-def get_star_label(star_class: str):
+def get_star_label(star_class: str, luminosity: str = None):
+    name = "Star"
+    type = "main-sequence"
+    if luminosity == "Ia0":
+        type = "hypergiant"
+    elif luminosity.startswith("IV") or luminosity == "III":
+        name = "giant"
+    elif luminosity.startswith("I"):
+        name = "supergiant"
     if star_class.startswith("D"):
         name = "White dwarf"
+    elif star_class == "H":
+        name = "Black hole"
+    elif star_class == "N":
+        name = "Neutron star"
+    elif star_class == "O":
+        name = "Luminous blue {} star"
+    elif star_class == "O":
+        name = "Luminous blue {} star"
+    elif star_class == "B":
+        name = "Blue {} star"
+    elif star_class == "A":
+        name = "White-blue {} star"
+    elif star_class == "F":
+        name = "White {} star"
+    elif star_class == "G":
+        name = "White-yellow {} star"
+    elif star_class == "K":
+        name = "Yellow-orange {} star"
+    elif star_class.startswith("W"):
+        name = "Wolf-Rayet star"
+    elif star_class.startswith("C"):
+        name = "Carbon star"
+    elif star_class == "M":
+        if type == "main-sequence":
+            type = "dwarf"
+        name = "Red {} star"
+    elif star_class == "HeBe":
+        name = "Herbig Ae/Be star"
+    elif star_class == "TTS":
+        name = "T Tauri star"
+    elif star_class == "L":
+        name = "Dark red dwarf star"
+    elif star_class == "T":
+        name = "Methane dwarf star"
+    elif star_class == "Y":
+        name = "Brown dwarf star"
+    elif star_class == "MS":
+        name = "Intermediate zirconium-monoxide star"
+    elif star_class == "S":
+        name = "Cool giant zirconium-monoxide star"
+
+    final_name = name.format(type)
+    return "{} ({}{})".format(final_name, star_class, " " + luminosity if luminosity else "")
 
 
 def journal_entry(cmdr, is_beta, system, station, entry, state):
@@ -397,13 +451,16 @@ def journal_entry(cmdr, is_beta, system, station, entry, state):
                 value, honk_value = get_star_value(k, mass, not was_discovered)
                 if entry['BodyID'] == this.main_star_id:
                     this.main_star = value
+                    this.main_star_name = get_star_label(entry['StarType'], entry['Luminosity'])
                 else:
                     body = BodyData(bodyname_insystem)
                     body.set_base_values(value, value)
                     body.set_mapped_values(value, value)
                     body.set_honk_values(honk_value, honk_value)
                     body.set_distance(distancels)
+                    body.set_star(True)
                     body.set_type(entry['StarType'])
+                    body.set_luminosity(entry['Luminosity'])
                     body.set_mapped(True)
                     this.bodies[bodyname_insystem] = body
                 if not this.honked:
@@ -418,7 +475,7 @@ def journal_entry(cmdr, is_beta, system, station, entry, state):
                 efficiency_bonus = 1.25
                 # If we get any key-not-in-dict errors, then this body probably
                 # wasn't interesting in the first place
-                if bodyname_insystem not in this.bodies or this.bodies[bodyname_insystem][0][0] == 0:
+                if bodyname_insystem not in this.bodies or this.bodies[bodyname_insystem].get_base_values()[0] == 0:
                     if 'StarSystem' in entry:
                         this.starsystem = entry['StarSystem']
                     terraformable = bool(entry['TerraformState'])
@@ -444,6 +501,8 @@ def journal_entry(cmdr, is_beta, system, station, entry, state):
                     this.bodies[bodyname_insystem].set_base_values(value, min_value)
                     this.bodies[bodyname_insystem].set_honk_values(honk_value, min_honk_value)
                     this.bodies[bodyname_insystem].set_distance(distancels)
+                    this.bodies[bodyname_insystem].set_type(planetclass)
+                    this.bodies[bodyname_insystem].set_terraformable(terraformable)
                     if this.bodies[bodyname_insystem].get_mapped_values()[1] == 0:
                         this.bodies[bodyname_insystem].set_mapped_values(int(mapped_value), int(min_mapped_value))
                     else:
@@ -471,7 +530,7 @@ def journal_entry(cmdr, is_beta, system, station, entry, state):
         was_efficient = True if target >= used else False
         this.map_count += 1
         bodyname_insystem = get_bodyname(entry['BodyName'])
-        if bodyname_insystem not in this.bodies.keys():
+        if bodyname_insystem not in this.bodies:
             this.bodies[bodyname_insystem] = BodyData(bodyname_insystem)
             this.planet_count += 1
         else:
@@ -491,6 +550,7 @@ def journal_entry(cmdr, is_beta, system, station, entry, state):
             this.starsystem = entry['StarSystem']
         this.main_star_id = entry['BodyID']
         this.main_star = 0
+        this.main_star_name = "Star"
         this.bodies = {}
         this.honked = False
         this.fully_scanned = False
@@ -508,7 +568,7 @@ def journal_entry(cmdr, is_beta, system, station, entry, state):
         bodyname_insystem = get_bodyname(entry['BodyName'])
         for signal in entry['Signals']:
             if signal['Type'] == '$SAA_SignalType_Biological;':
-                if bodyname_insystem not in this.bodies.keys():
+                if bodyname_insystem not in this.bodies:
                     this.bodies[bodyname_insystem] = BodyData(bodyname_insystem)
                     this.planet_count += 1
                     this.scans.add(bodyname_insystem)
