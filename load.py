@@ -393,7 +393,27 @@ def get_star_label(star_class: str = "", subclass: str = "", luminosity: str = "
     elif luminosity.startswith("I"):
         star_type = "supergiant"
     if star_class.startswith("D"):
-        name = "White dwarf"
+        name = "{}{}white dwarf"
+        descriptors = []
+        modifier = ""
+        if star_class.find("A") is not -1:
+            descriptors.append("hydrogen-rich")
+        if star_class.find("B") is not -1:
+            descriptors.append("helium-rich")
+        if star_class.find("C") is not -1:
+            descriptors.append("continuous-spectrum")
+        if star_class.find("O") is not -1:
+            descriptors.append("ionized helium")
+        if star_class.find("Q") is not -1:
+            descriptors.append("carbon-rich")
+        if star_class.find("Z") is not -1:
+            descriptors.append("metallic")
+        if star_class.find("V") is not -1:
+            modifier = "variable"
+        if star_class.find("X") is not -1:
+            modifier = "atypical"
+        name = name.format(modifier + " " if modifier else "",
+                           ", ".join(descriptors) + " " if len(descriptors) else "").capitalize()
     elif star_class == "H":
         name = "Black hole"
     elif star_class == "SupermassiveBlackHole":
@@ -419,9 +439,31 @@ def get_star_label(star_class: str = "", subclass: str = "", luminosity: str = "
         star_class = "K"
         name = "Yellow-orange {} star"
     elif star_class.startswith("W"):
-        name = "Wolf-Rayet star"
+        name = "{}Wolf-Rayet star"
+        descriptor = ""
+        if star_class[1:] == "C":
+            descriptor = "Carbon-rich "
+        elif star_class[1:] == "N":
+            descriptor = "Nitrogen and helium-rich "
+        elif star_class[1:] == "NC":
+            descriptor = "Carbon and nitrogen-rich "
+        elif star_class[1:] == "O":
+            descriptor = "Carbon and oxygen-rich "
+        name = name.format(descriptor)
     elif star_class.startswith("C"):
-        name = "Carbon star"
+        name = "carbon star"
+        descriptor = ""
+        if star_class[1:] == "N":
+            descriptor = "Bright "
+        elif star_class[1:] == "J":
+            descriptor = "Carbon-13 rich "
+        elif star_class[1:] == "H":
+            descriptor = "Metal-poor "
+        elif star_class[1:] == "Hd":
+            descriptor = "Hydrogen-poor "
+        elif star_class[1:] == "S":
+            descriptor = "Giant "
+        name = name.format(descriptor).capitalize()
     elif star_class in ["M", "M_RedSuperGiant", "M_RedGiant"]:
         star_class = "M"
         if star_type == "main-sequence":
