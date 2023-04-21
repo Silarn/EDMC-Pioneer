@@ -62,7 +62,7 @@ Suggestions and requests are welcome.
 
 ## License
 
-[Pioneer plugin][Pioneer] Copyright © 2022 Jeremy Rimpo
+[Pioneer plugin][Pioneer] Copyright © 2023 Jeremy Rimpo
 
 Licensed under the [GNU Public License (GPL)][GPLv2] version 2 or later.
 
