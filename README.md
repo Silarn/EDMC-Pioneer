@@ -1,10 +1,12 @@
 # Pioneer plugin for [EDMC](https://github.com/Marginal/EDMarketConnector/wiki)
 
+<img align="right" src="Pioneer-Example.png">
 Pioneer is a tool for explorers to have an at-a-glance view of key system information. It will predict a total possible
 as well as current value of all exploration data in a system. Due to limitations of EDMC journal data parsing,
 Pioneer works best on newly visited and unscanned systems. However, it can provide a rough calculation for systems
 when data is downloaded from a nav beacon. It also provides the option to get system data from EDSM to fill out missing
 information.
+
 
 
 ### Value Calculations
