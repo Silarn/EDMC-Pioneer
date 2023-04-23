@@ -155,7 +155,7 @@ def get_star_label(star_class: str = "", subclass: str = "", luminosity: str = "
             descriptor = "Carbon and oxygen-rich "
         name = name.format(descriptor)
     elif star_class.startswith("C"):
-        name = "carbon star"
+        name = "{}carbon star"
         descriptor = ""
         if star_class[1:] == "N":
             descriptor = "Bright "
@@ -223,18 +223,18 @@ def map_edsm_class(edsm_class):
 
 def parse_edsm_star_class(subtype):
     star_class = ""
-    subclass = "?"
+    subclass = "0"
     match subtype:
         case 'White Dwarf (D) Star':
-            star_class = 'D', '?'
+            star_class = 'D'
         case 'White Dwarf (DA) Star':
-            star_class = 'DA', '?'
+            star_class = 'DA'
         case 'White Dwarf (DAB) Star':
-            star_class = 'DAB', '?'
+            star_class = 'DAB'
         case 'White Dwarf (DAO) Star':
-            star_class = 'DAO', '?'
+            star_class = 'DAO'
         case 'White Dwarf (DAZ) Star':
-            star_class = 'DAZ', '?'
+            star_class = 'DAZ'
         case 'White Dwarf (DB) Star':
             star_class = 'DB'
         case 'White Dwarf (DBZ) Star':

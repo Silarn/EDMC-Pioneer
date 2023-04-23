@@ -525,7 +525,7 @@ def journal_entry(cmdr, is_beta, system, station, entry, state):
         this.non_body_count = 0
         this.scans = set()
         update_display()
-        this.scroll_canvas.yview_scroll(-1, "page")
+        this.scroll_canvas.yview_moveto(0.0)
         if this.edsm_setting.get() == "Always":
             edsm_fetch()
 
