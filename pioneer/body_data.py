@@ -83,6 +83,52 @@ class BodyData:
         self.is_a_star = value
 
 
+def get_body_shorthand(body: BodyData):
+    match body.get_type():
+        case 'Icy body':
+            tag = "I"
+        case 'Rocky body':
+            tag = "R"
+        case 'Rocky ice body':
+            tag = "RI"
+        case 'Metal rich body':
+            tag = "MR"
+        case 'High metal content body':
+            tag = "HMC"
+        case 'Earthlike body':
+            tag = "EL"
+        case 'Water world':
+            tag = "W"
+        case 'Ammonia world':
+            tag = "A"
+        case 'Water giant':
+            tag = "G-W"
+        case 'Water giant with life':
+            tag = "G-W-L"
+        case 'Gas giant with water based life':
+            tag = "G-WL"
+        case 'Gas giant with ammonia based life':
+            tag = "G-AL"
+        case 'Sudarsky class I gas giant':
+            tag = "G-I"
+        case 'Sudarsky class II gas giant':
+            tag = "G-II"
+        case 'Sudarsky class III gas giant':
+            tag = "G-III"
+        case 'Sudarsky class IV gas giant':
+            tag = "G-IV"
+        case 'Sudarsky class V gas giant':
+            tag = "G-V"
+        case 'Helium rich gas giant':
+            tag = "G-He+"
+        case 'Helium gas giant':
+            tag = "G-He"
+        case _:
+            tag = ""
+        
+    return " [{}]{}".format(tag, " <TC>" if body.is_terraformable() else "")
+
+
 def get_star_label(star_class: str = "", subclass: str = "", luminosity: str = ""):
     name = "Star"
     star_type = "main-sequence"

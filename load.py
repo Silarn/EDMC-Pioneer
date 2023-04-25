@@ -19,13 +19,13 @@ from theme import theme
 from EDMCLogging import get_main_logger
 import semantic_version
 
-from body_data import BodyData, get_star_label, map_edsm_class, parse_edsm_star_class
-from body_calc import get_body_value, get_star_value, get_starclass_k, get_planetclass_k
-from format_util import Formatter
+from pioneer.body_data import BodyData, get_star_label, map_edsm_class, parse_edsm_star_class, get_body_shorthand
+from pioneer.body_calc import get_body_value, get_star_value, get_starclass_k, get_planetclass_k
+from pioneer.format_util import Formatter
 
 logger = get_main_logger()
 
-VERSION = '0.9'
+VERSION = '1.2.0'
 
 this = sys.modules[__name__]  # For holding module globals
 this.formatter = Formatter()
@@ -186,7 +186,7 @@ def calc_system_value():
                                            get_star_label(body_data.get_type(),
                                                           body_data.get_subclass(),
                                                           body_data.get_luminosity()),
-                                           " (T)" if body_data.is_terraformable() else "") + "\n"
+                                           " <TC>" if body_data.is_terraformable() else "") + "\n"
         if body_data.is_mapped() is True:
             val_text = "{} - {}".format(this.formatter.format_credits(body_data.get_mapped_values()[1]),
                                         this.formatter.format_credits(body_data.get_mapped_values()[0])) \
@@ -568,10 +568,11 @@ def update_display():
         body_value = int(this.bodies[body_name].get_mapped_values()[0] * efficiency_bonus)
         body_distance = this.bodies[body_name].get_distance()
         if body_value >= this.min_value.get():
-            return '%s (up to %s, %s)' % \
+            return '%s%s (max %s, %s)' % \
                    (body_name.upper(),
+                    get_body_shorthand(this.bodies[body_name]),
                     this.formatter.format_credits(body_value, False),
-                    this.formatter.format_ls(body_distance, False))
+                    this.formatter.format_ls(body_distance))
         else:
             return '%s'
 
