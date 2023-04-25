@@ -611,7 +611,7 @@ def update_display():
                 else:
                     text += '\n'
 
-        text += '\n' + 'B#: {} NB#: {}'.format(this.body_count, this.non_body_count)
+        text += 'B#: {} NB#: {}'.format(this.body_count, this.non_body_count)
         this.label['text'] = text
     else:
         this.label['text'] = 'Pioneer: Nothing Scanned'
