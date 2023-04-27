@@ -611,6 +611,9 @@ def update_display():
                 else:
                     text += '\n'
 
+        if text[-1] != '\n':
+            text += "\n"
+
         text += 'B#: {} NB#: {}'.format(this.body_count, this.non_body_count)
         this.label['text'] = text
     else:
