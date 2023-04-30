@@ -9,6 +9,7 @@ import sys
 import threading
 import tkinter as tk
 from tkinter import ttk, Widget as tkWidget
+from typing import Any, MutableMapping, Mapping
 from urllib.parse import quote
 
 import requests
@@ -27,51 +28,53 @@ logger = get_main_logger()
 
 VERSION = '1.2.0'
 
-this = sys.modules[__name__]  # For holding module globals
-this.formatter = Formatter()
-this.frame = None
-this.scroll_canvas = None
-this.scrollbar = None
-this.scrollable_frame = None
-this.label = None
-this.values_label = None
-this.total_label = None
-this.bodies = {}  # type: dict[str, BodyData]
-this.odyssey = False
-this.game_version = semantic_version.Version.coerce('0.0.0.0')
-this.min_value = None
-this.shorten_values = None
-this.show_details = None
-this.show_biological = None
-this.edsm_setting = None
-this.edsm_session = None
-this.edsm_bodies = None
-this.planet_count = 0
-this.body_count = 0
-this.non_body_count = 0
-this.scans = set()
-this.map_count = 0
-this.main_star_id = None
-this.main_star = 0
-this.main_star_name = "Star"
-this.exo_earnings = 0
-this.honked = False
-this.fully_scanned = False
-this.was_scanned = False
-this.was_mapped = False
-this.starsystem = ''
+class This:
+    """Holds module globals."""
+
+    def __init__(self):
+        self.formatter = Formatter()
+        self.frame = None
+        self.scroll_canvas = None
+        self.scrollbar = None
+        self.scrollable_frame = None
+        self.label = None
+        self.values_label = None
+        self.total_label = None
+        self.bodies: dict[str, BodyData] = {}
+        self.odyssey = False
+        self.game_version = semantic_version.Version.coerce('0.0.0.0')
+        self.min_value = None
+        self.shorten_values = None
+        self.show_details = None
+        self.show_biological = None
+        self.edsm_setting = None
+        self.edsm_session = None
+        self.edsm_bodies = None
+        self.planet_count = 0
+        self.body_count = 0
+        self.non_body_count = 0
+        self.scans = set()
+        self.map_count = 0
+        self.main_star_id = None
+        self.main_star = 0
+        self.main_star_name = ""
+        self.main_star_type = "Star"
+        self.exo_earnings = 0
+        self.honked = False
+        self.fully_scanned = False
+        self.was_scanned = False
+        self.was_mapped = False
+        self.starsystem = ''
+
+
+this = This()
 
 
 def plugin_start3(plugin_dir):
-    return plugin_start()
-
-
-def plugin_start():
-    # App isn't initialised at this point so can't do anything interesting
     return 'Pioneer'
 
 
-def plugin_app(parent: tk.Frame):
+def plugin_app(parent: tk.Frame) -> tk.Frame:
     parse_config()
     this.frame = tk.Frame(parent)
     this.frame.bind('<<PioneerEDSMData>>', edsm_data)
@@ -103,7 +106,7 @@ def plugin_app(parent: tk.Frame):
     return this.frame
 
 
-def plugin_prefs(parent, cmdr, is_beta):
+def plugin_prefs(parent: nb.Frame, cmdr: str, is_beta: bool) -> nb.Frame:
     frame = nb.Frame(parent)
     frame.columnconfigure(3, weight=1)
     nb.Label(frame, text='Valuable Body Minimum:').grid(row=0, column=0, sticky=tk.W)
@@ -146,7 +149,7 @@ def plugin_prefs(parent, cmdr, is_beta):
     return frame
 
 
-def prefs_changed(cmdr, is_beta):
+def prefs_changed(cmdr: str, is_beta: bool) -> None:
     config.set('pioneer_min_value', this.min_value.get())
     config.set('pioneer_shorten', this.shorten_values.get())
     this.formatter.set_shorten(this.shorten_values.get())
@@ -156,7 +159,7 @@ def prefs_changed(cmdr, is_beta):
     update_display()
 
 
-def parse_config():
+def parse_config() -> None:
     this.min_value = tk.IntVar(value=config.get_int(key='pioneer_min_value', default=400000))
     this.shorten_values = tk.BooleanVar(value=config.get_bool(key='pioneer_shorten', default=True))
     this.formatter.set_shorten(this.shorten_values.get())
@@ -164,7 +167,8 @@ def parse_config():
     this.show_biological = tk.BooleanVar(value=config.get_bool(key='pioneer_biological', default=True))
     this.edsm_setting = tk.StringVar(value=config.get_str(key='pioneer_edsm', default='Never'))
 
-def calc_system_value():
+
+def calc_system_value() -> tuple[int, int, int, int]:
     if this.main_star == 0:
         this.values_label["text"] = "Main star not scanned.\nSystem already visited?"
         return 0, 0, 0, 0
@@ -230,9 +234,9 @@ def calc_system_value():
         max_value += body_data.get_honk_values()[0]
         min_max_value += body_data.get_honk_values()[1]
         bodies_text += "------------------" + "\n"
-    this.values_label["text"] = "{} (Main star):\n   {}\n   {} + {} = {}".format(
-        this.starsystem,
+    this.values_label["text"] = "{}:\n   {}\n   {} + {} = {}".format(
         this.main_star_name,
+        this.main_star_type,
         this.formatter.format_credits(this.main_star),
         this.formatter.format_credits(honk_sum) if honk_sum == min_honk_sum else "{} to {}".format(
             this.formatter.format_credits(min_honk_sum),
@@ -271,7 +275,7 @@ def calc_system_value():
     return value_sum, min_value_sum, max_value, min_max_value
 
 
-def get_bodyname(fullname: str = ""):
+def get_bodyname(fullname: str = "") -> str:
     if fullname.startswith(this.starsystem + ' '):
         bodyname = fullname[len(this.starsystem + ' '):]
     else:
@@ -279,13 +283,13 @@ def get_bodyname(fullname: str = ""):
     return bodyname
 
 
-def edsm_fetch():
+def edsm_fetch() -> None:
     thread = threading.Thread(target=edsm_worker, name='EDSM worker', args=(this.starsystem,))
     thread.daemon = True
     thread.start()
 
 
-def edsm_worker(system_name):
+def edsm_worker(system_name: str) -> None:
     if not this.edsm_session:
         this.edsm_session = requests.Session()
 
@@ -300,7 +304,7 @@ def edsm_worker(system_name):
     this.frame.event_generate('<<PioneerEDSMData>>', when='tail')
 
 
-def edsm_data(event):
+def edsm_data(event: tk.Event) -> None:
     if this.edsm_bodies is None:
         return
 
@@ -320,7 +324,7 @@ def edsm_data(event):
                     value, honk_value = get_star_value(k, mass, False)
                     if body['isMainStar'] and this.main_star == 0:
                         this.main_star = value
-                        this.main_star_name = get_star_label(star_class, subclass, body['luminosity']) + " (EDSM)"
+                        this.main_star_type = get_star_label(star_class, subclass, body['luminosity']) + " (EDSM)"
                     elif not body['isMainStar']:
                         new_body = BodyData(bodyname_insystem)
                         new_body.set_base_values(value, value)
@@ -382,13 +386,12 @@ def edsm_data(event):
     update_display()
 
 
-
-def journal_entry(cmdr, is_beta, system, station, entry, state):
+def journal_entry(cmdr: str, is_beta: bool, system: str, station: str,
+                  entry: MutableMapping[str, Any], state: Mapping[str, Any]) -> str:
+    this.starsystem = state['SystemName']
+    this.game_version = state['GameVersion']
     if entry['event'] == 'Fileheader' or entry['event'] == 'LoadGame':
         this.odyssey = entry.get('Odyssey', False)
-        this.game_version = semantic_version.Version.coerce(entry.get('gameversion'))
-    elif entry['event'] == 'Location':
-        this.starsystem = entry['StarSystem']
     elif entry['event'] == 'Scan':
         bodyname_insystem = get_bodyname(entry['BodyName'])
         navbeacon = False
@@ -404,7 +407,9 @@ def journal_entry(cmdr, is_beta, system, station, entry, state):
                 value, honk_value = get_star_value(k, mass, not was_discovered)
                 if entry['BodyID'] == this.main_star_id:
                     this.main_star = value
-                    this.main_star_name = get_star_label(entry['StarType'], entry['Subclass'], entry['Luminosity'])
+                    this.main_star_name = "Main star" if this.starsystem == bodyname_insystem \
+                        else "{} (Main star)".format(bodyname_insystem)
+                    this.main_star_type = get_star_label(entry['StarType'], entry['Subclass'], entry['Luminosity'])
                 else:
                     body = BodyData(bodyname_insystem)
                     body.set_base_values(value, value)
@@ -432,8 +437,6 @@ def journal_entry(cmdr, is_beta, system, station, entry, state):
                 # If we get any key-not-in-dict errors, then this body probably
                 # wasn't interesting in the first place
                 if bodyname_insystem not in this.bodies or this.bodies[bodyname_insystem].get_base_values()[0] == 0:
-                    if 'StarSystem' in entry:
-                        this.starsystem = entry['StarSystem']
                     terraformable = bool(entry['TerraformState'])
                     distancels = float(entry['DistanceFromArrivalLS'])
                     planetclass = entry['PlanetClass']
@@ -471,7 +474,6 @@ def journal_entry(cmdr, is_beta, system, station, entry, state):
                 logger.error(e)
 
     elif entry['event'] == 'FSSDiscoveryScan':
-        this.starsystem = entry['SystemName']
         this.honked = True
         this.body_count = entry["BodyCount"]
         this.non_body_count = entry['NonBodyCount']
@@ -509,11 +511,10 @@ def journal_entry(cmdr, is_beta, system, station, entry, state):
         update_display()
 
     elif entry['event'] == 'FSDJump':
-        if 'StarSystem' in entry:
-            this.starsystem = entry['StarSystem']
         this.main_star_id = entry['BodyID'] if 'BodyID' in entry else 0
         this.main_star = 0
-        this.main_star_name = "Star"
+        this.main_star_type = "Star"
+        this.main_star_name = ""
         this.bodies = {}
         this.honked = False
         this.fully_scanned = False
@@ -541,8 +542,10 @@ def journal_entry(cmdr, is_beta, system, station, entry, state):
                         this.body_count += 1
                 this.bodies[bodyname_insystem].set_bio_signals(signal['Count'])
 
+    return ''  # No error
 
-def update_display():
+
+def update_display() -> None:
     efficiency_bonus = 1.25
     valuable_body_names = [
         body_name
@@ -563,7 +566,7 @@ def update_display():
         if body_data.get_bio_signals() > 0 and not body_data.is_mapped()
     ]
 
-    def format_body(body_name):
+    def format_body(body_name: str) -> str:
         # template: NAME (VALUE, DIST), …
         body_value = int(this.bodies[body_name].get_mapped_values()[0] * efficiency_bonus)
         body_distance = this.bodies[body_name].get_distance()
@@ -639,7 +642,7 @@ def update_display():
         this.scrollbar.grid_remove()
 
 
-def bind_mousewheel(event):
+def bind_mousewheel(event: tk.Event) -> None:
     if sys.platform in ("linux", "cygwin", "msys"):
         this.scroll_canvas.bind_all('<Button-4>', on_mousewheel)
         this.scroll_canvas.bind_all('<Button-5>', on_mousewheel)
@@ -647,7 +650,7 @@ def bind_mousewheel(event):
         this.scroll_canvas.bind_all('<MouseWheel>', on_mousewheel)
 
 
-def unbind_mousewheel(event):
+def unbind_mousewheel(event: tk.Event) -> None:
     if sys.platform in ("linux", "cygwin", "msys"):
         this.scroll_canvas.unbind_all('<Button-4>')
         this.scroll_canvas.unbind_all('<Button-5>')
@@ -655,7 +658,7 @@ def unbind_mousewheel(event):
         this.scroll_canvas.unbind_all('<MouseWheel>')
 
 
-def on_mousewheel(event):
+def on_mousewheel(event: tk.Event) -> None:
     shift = (event.state & 0x1) != 0
     scroll = 0
     if event.num == 4 or event.delta == 120:
