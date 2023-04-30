@@ -23,15 +23,15 @@ import semantic_version
 from pioneer.body_data import BodyData, get_star_label, map_edsm_class, parse_edsm_star_class, get_body_shorthand
 from pioneer.body_calc import get_body_value, get_star_value, get_starclass_k, get_planetclass_k
 from pioneer.format_util import Formatter
+from ttkHyperlinkLabel import HyperlinkLabel
 
 logger = get_main_logger()
-
-VERSION = '1.2.0'
 
 class This:
     """Holds module globals."""
 
     def __init__(self):
+        self.VERSION = '1.2.0'
         self.formatter = Formatter()
         self.frame = None
         self.scroll_canvas = None
@@ -107,28 +107,40 @@ def plugin_app(parent: tk.Frame) -> tk.Frame:
 
 
 def plugin_prefs(parent: nb.Frame, cmdr: str, is_beta: bool) -> nb.Frame:
+    x_padding = 10
+    x_button_padding = 12
+    y_padding = 2
     frame = nb.Frame(parent)
-    frame.columnconfigure(3, weight=1)
-    nb.Label(frame, text='Valuable Body Minimum:').grid(row=0, column=0, sticky=tk.W)
-    nb.Entry(frame, textvariable=this.min_value).grid(row=0, column=1, columnspan=2, sticky=tk.W)
-    nb.Label(frame, text='Cr').grid(row=0, column=3, sticky=tk.W)
+    frame.columnconfigure(2, weight=1)
+
+    HyperlinkLabel(frame, text='Pioneer', background=nb.Label().cget('background'),
+                   url='https://github.com/Silarn/EDMC-Pioneer', underline=True) \
+        .grid(row=1, padx=x_padding, sticky=tk.W)
+    nb.Label(frame, text = 'Version %s' % this.VERSION).grid(row=1, column=2, padx=x_padding, sticky=tk.E)
+
+    ttk.Separator(frame).grid(row=5, columnspan=3, pady=y_padding*2, sticky=tk.EW)
+    nb.Label(frame, text='Valuable Body Minimum:').grid(row=10, column=0, padx=x_padding, sticky=tk.W)
+    vcmd = (frame.register(validate_int))
+    nb.Entry(frame, textvariable=this.min_value,
+             validate='all', validatecommand=(vcmd, '%P')).grid(row=10, column=1, sticky=tk.W)
+    nb.Label(frame, text='Cr').grid(row=10, column=2, sticky=tk.W)
     nb.Checkbutton(
         frame,
         text='Shorten credit values (thousands, millions)',
         variable=this.shorten_values
-    ).grid(row=1, columnspan=3, sticky=tk.W)
+    ).grid(row=15, columnspan=3, padx=x_button_padding, sticky=tk.W)
     nb.Checkbutton(
         frame,
         text='Show detailed body values (scrollbox)',
         variable=this.show_details
-    ).grid(row=2, columnspan=3, sticky=tk.W)
+    ).grid(row=20, columnspan=3, padx=x_button_padding, sticky=tk.W)
     nb.Checkbutton(
         frame,
         text='Show unmapped bodies with biological signals',
         variable=this.show_biological
-    ).grid(row=3, columnspan=3, sticky=tk.W)
-    ttk.Separator(frame, orient=tk.HORIZONTAL).grid(columnspan=3, padx=5, pady=2, sticky=tk.EW)
-    nb.Label(frame, text='Fetch body data from EDSM:').grid(row=5, columnspan=3, sticky=tk.W)
+    ).grid(row=25, columnspan=3, padx=x_button_padding, sticky=tk.W)
+    ttk.Separator(frame, orient=tk.HORIZONTAL).grid(row=30, columnspan=3, pady=y_padding*2, sticky=tk.EW)
+    nb.Label(frame, text='Fetch body data from EDSM:').grid(row=35, columnspan=3, padx=x_padding, sticky=tk.W)
     edsm_options = [
         "Never",
         "Always",
@@ -139,13 +151,13 @@ def plugin_prefs(parent: nb.Frame, cmdr: str, is_beta: bool) -> nb.Frame:
         this.edsm_setting,
         this.edsm_setting.get(),
         *edsm_options
-    ).grid(row=6, columnspan=3, sticky=tk.W)
+    ).grid(row=40, columnspan=3, padx=x_padding, sticky=tk.W)
     nb.Label(frame,
              text='Never: Disabled\n' +
                   'Always: Always fetch on system jump\n' +
                   'After Honk: Fetch if system is already 100% scanned',
              justify=tk.LEFT) \
-        .grid(row=7, columnspan=3, sticky=tk.W)
+        .grid(row=45, columnspan=3, padx=x_padding, sticky=tk.W)
     return frame
 
 
@@ -166,6 +178,12 @@ def parse_config() -> None:
     this.show_details = tk.BooleanVar(value=config.get_bool(key='pioneer_details', default=True))
     this.show_biological = tk.BooleanVar(value=config.get_bool(key='pioneer_biological', default=True))
     this.edsm_setting = tk.StringVar(value=config.get_str(key='pioneer_edsm', default='Never'))
+
+
+def validate_int(val: str) -> bool:
+    if val.isdigit() or val == "":
+        return True
+    return False
 
 
 def calc_system_value() -> tuple[int, int, int, int]:
