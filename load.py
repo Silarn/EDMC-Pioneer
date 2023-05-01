@@ -27,6 +27,7 @@ from ttkHyperlinkLabel import HyperlinkLabel
 
 logger = get_main_logger()
 
+
 class This:
     """Holds module globals."""
 
@@ -62,8 +63,8 @@ class This:
         self.exo_earnings = 0
         self.honked = False
         self.fully_scanned = False
-        self.was_scanned = False
-        self.was_mapped = False
+        self.system_was_scanned = False
+        self.system_was_mapped = False
         self.starsystem = ''
 
 
@@ -203,12 +204,15 @@ def calc_system_value() -> tuple[int, int, int, int]:
     min_max_value += this.main_star
     bodies_text = ""
     for body_name, body_data in sorted(this.bodies.items(), key=lambda item: item[1].get_distance()):
-        bodies_text += "{} - {}{}:".format(body_name,
-                                           body_data.get_type() if not body_data.is_star() else
-                                           get_star_label(body_data.get_type(),
-                                                          body_data.get_subclass(),
-                                                          body_data.get_luminosity()),
-                                           " <TC>" if body_data.is_terraformable() else "") + "\n"
+        bodies_text += "{} - {}{}{}{}:".format(body_name,
+                                               body_data.get_type() if not body_data.is_star() else
+                                               get_star_label(body_data.get_type(),
+                                                              body_data.get_subclass(),
+                                                              body_data.get_luminosity()),
+                                               " <TC>" if body_data.is_terraformable() else "",
+                                               " >S<" if body_data.was_discovered() else "",
+                                               " >M<" if body_data.get_was_mapped() else "",
+                                               ) + "\n"
         if body_data.is_mapped() is True:
             val_text = "{} - {}".format(this.formatter.format_credits(body_data.get_mapped_values()[1]),
                                         this.formatter.format_credits(body_data.get_mapped_values()[0])) \
@@ -266,7 +270,7 @@ def calc_system_value() -> tuple[int, int, int, int]:
         )) + "\n"
     this.values_label["text"] += "------------------" + "\n"
     this.values_label["text"] += bodies_text
-    if not this.was_scanned:
+    if not this.system_was_scanned:
         total_bodies = this.body_count + this.non_body_count
         if this.fully_scanned and total_bodies == len(this.scans):
             this.values_label["text"] += "Fully Scanned Bonus: {}".format(
@@ -276,7 +280,7 @@ def calc_system_value() -> tuple[int, int, int, int]:
             min_value_sum += total_bodies * 1000
         max_value += total_bodies * 1000
         min_max_value += total_bodies * 1000
-    if not this.was_mapped and this.planet_count > 0:
+    if not this.system_was_mapped and this.planet_count > 0:
         if this.fully_scanned and this.planet_count == this.map_count:
             this.values_label["text"] += "Fully Mapped Bonus: {}".format(
                 this.formatter.format_credits(this.planet_count * 10000)) + "\n"
@@ -359,7 +363,7 @@ def edsm_data(event: tk.Event) -> None:
                     if not this.honked:
                         this.body_count += 1
 
-                    this.was_scanned = True
+                    this.system_was_scanned = True
                     this.scans.add(bodyname_insystem)
 
                 except Exception as e:
@@ -375,7 +379,7 @@ def edsm_data(event: tk.Event) -> None:
                     mass = float(body['earthMasses'])
                     was_discovered = True
                     was_mapped = False
-                    this.was_scanned = True
+                    this.system_was_scanned = True
 
                     k, kt, tm = get_planetclass_k(planetclass, terraformable)
                     value, mapped_value, honk_value, \
@@ -445,7 +449,7 @@ def journal_entry(cmdr: str, is_beta: bool, system: str, station: str,
                     this.body_count += 1
 
             if bool(entry["WasDiscovered"]) or navbeacon:
-                this.was_scanned = True
+                this.system_was_scanned = True
             this.scans.add(bodyname_insystem)
             update_display()
         else:
@@ -461,8 +465,8 @@ def journal_entry(cmdr: str, is_beta: bool, system: str, station: str,
                     mass = float(entry['MassEM'])
                     was_discovered = True if navbeacon else bool(entry['WasDiscovered'])
                     was_mapped = True if navbeacon else bool(entry['WasMapped'])
-                    this.was_scanned = True if was_discovered else this.was_scanned
-                    this.was_mapped = True if was_mapped else this.was_mapped
+                    this.system_was_scanned = True if was_discovered else this.system_was_scanned
+                    this.system_was_mapped = True if was_mapped else this.system_was_mapped
 
                     k, kt, tm = get_planetclass_k(planetclass, terraformable)
                     value, mapped_value, honk_value, \
@@ -480,6 +484,8 @@ def journal_entry(cmdr: str, is_beta: bool, system: str, station: str,
                     this.bodies[bodyname_insystem].set_distance(distancels)
                     this.bodies[bodyname_insystem].set_type(planetclass)
                     this.bodies[bodyname_insystem].set_terraformable(terraformable)
+                    this.bodies[bodyname_insystem].set_discovered(this.system_was_scanned)
+                    this.bodies[bodyname_insystem].set_was_mapped(this.system_was_mapped)
                     if this.bodies[bodyname_insystem].get_mapped_values()[1] == 0:
                         this.bodies[bodyname_insystem].set_mapped_values(int(mapped_value), int(min_mapped_value))
                     else:
@@ -497,7 +503,7 @@ def journal_entry(cmdr: str, is_beta: bool, system: str, station: str,
         this.non_body_count = entry['NonBodyCount']
         if entry["Progress"] == 1.0 and not this.fully_scanned:
             this.fully_scanned = True
-            this.was_scanned = True
+            this.system_was_scanned = True
             if this.edsm_setting.get() == "After Honk":
                 edsm_fetch()
         update_display()
@@ -536,8 +542,8 @@ def journal_entry(cmdr: str, is_beta: bool, system: str, station: str,
         this.bodies = {}
         this.honked = False
         this.fully_scanned = False
-        this.was_scanned = False
-        this.was_mapped = False
+        this.system_was_scanned = False
+        this.system_was_mapped = False
         this.planet_count = 0
         this.map_count = 0
         this.body_count = 0
@@ -605,12 +611,12 @@ def update_display() -> None:
         if this.honked:
             text += ' (H)'
         if this.fully_scanned and len(this.scans) >= this.body_count:
-            if this.was_scanned:
+            if this.system_was_scanned:
                 text += ' (S)'
             else:
                 text += ' (S+)'
             if this.planet_count > 0 and this.planet_count == this.map_count:
-                if this.was_mapped:
+                if this.system_was_mapped:
                     text += ' (M)'
                 else:
                     text += ' (M+)'

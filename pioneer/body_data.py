@@ -1,3 +1,6 @@
+from typing import Self
+
+
 class BodyData:
     def __init__(self, name):
         self.name: str = name
@@ -9,81 +12,108 @@ class BodyData:
         self.base_value: tuple[int, int] = (0, 0)
         self.mapped_value: tuple[float, float] = (1.25, 1.25)
         self.honk_value: tuple[int, int] = (0, 0)
+        self.discovered: bool = False
         self.mapped: bool = False
+        self.was_mapped: bool = False
         self.bio_signals: int = 0
         self.is_a_star: bool = False
 
-    def get_name(self):
+    def get_name(self) -> str:
         return self.name
 
-    def get_base_values(self):
+    def get_base_values(self) -> tuple[int, int]:
         return self.base_value[0], self.base_value[1]
 
-    def set_base_values(self, value: int, min_value: int):
+    def set_base_values(self, value: int, min_value: int) -> Self:
         self.base_value = (value, min_value)
+        return self
 
-    def get_mapped_values(self):
+    def get_mapped_values(self) -> tuple[float, float]:
         return self.mapped_value[0], self.mapped_value[1]
 
-    def set_mapped_values(self, value: float, min_value: float):
+    def set_mapped_values(self, value: float, min_value: float) -> Self:
         self.mapped_value = (value, min_value)
+        return self
 
-    def get_honk_values(self):
+    def get_honk_values(self) -> tuple[int, int]:
         return self.honk_value[0], self.honk_value[1]
 
-    def set_honk_values(self, value: int, min_value: int):
+    def set_honk_values(self, value: int, min_value: int) -> Self:
         self.honk_value = (value, min_value)
+        return self
 
-    def is_mapped(self):
+    def was_discovered(self) -> bool:
+        return self.discovered
+
+    def set_discovered(self, value: bool) -> Self:
+        self.discovered = value
+        return self
+
+    def is_mapped(self) -> bool:
         return self.mapped
 
-    def set_mapped(self, value: bool):
+    def set_mapped(self, value: bool) -> Self:
         self.mapped = value
+        return self
 
-    def get_bio_signals(self):
+    def get_was_mapped(self) -> bool:
+        return self.was_mapped
+
+    def set_was_mapped(self, value: bool) -> Self:
+        self.was_mapped = value
+        return self
+
+    def get_bio_signals(self) -> int:
         return self.bio_signals
 
-    def set_bio_signals(self, value: int):
+    def set_bio_signals(self, value: int) -> Self:
         self.bio_signals = value
+        return self
 
-    def get_distance(self):
+    def get_distance(self) -> float:
         return self.distance
 
-    def set_distance(self, value: float):
+    def set_distance(self, value: float) -> Self:
         self.distance = value
+        return self
 
-    def get_type(self):
+    def get_type(self) -> str:
         return self.type
 
-    def set_type(self, value: str):
+    def set_type(self, value: str) -> Self:
         self.type = value
+        return self
 
-    def get_subclass(self):
+    def get_subclass(self) -> str:
         return self.subclass
 
-    def set_subclass(self, value: str):
+    def set_subclass(self, value: str) -> Self:
         self.subclass = value
+        return self
 
-    def get_luminosity(self):
+    def get_luminosity(self) -> str:
         return self.luminosity
 
-    def set_luminosity(self, value: str):
+    def set_luminosity(self, value: str) -> Self:
         self.luminosity = value
+        return self
 
-    def is_terraformable(self):
+    def is_terraformable(self) -> bool:
         return self.terraformable
 
-    def set_terraformable(self, value: bool):
+    def set_terraformable(self, value: bool) -> Self:
         self.terraformable = value
+        return self
 
-    def is_star(self):
+    def is_star(self) -> bool:
         return self.is_a_star
 
-    def set_star(self, value: bool):
+    def set_star(self, value: bool) -> Self:
         self.is_a_star = value
+        return self
 
 
-def get_body_shorthand(body: BodyData):
+def get_body_shorthand(body: BodyData) -> str:
     match body.get_type():
         case 'Icy body':
             tag = "I"
@@ -126,10 +156,15 @@ def get_body_shorthand(body: BodyData):
         case _:
             tag = ""
         
-    return " [{}]{}".format(tag, " <TC>" if body.is_terraformable() else "")
+    return " [{}]{}{}{}".format(
+        tag,
+        " <TC>" if body.is_terraformable() else "",
+        " >S<" if body.was_discovered() else "",
+        " >M<" if body.get_was_mapped() else ""
+    )
 
 
-def get_star_label(star_class: str = "", subclass: str = "", luminosity: str = ""):
+def get_star_label(star_class: str = "", subclass: str = "", luminosity: str = "") -> str:
     name = "Star"
     star_type = "main-sequence"
     if luminosity == "Ia0":
@@ -238,7 +273,7 @@ def get_star_label(star_class: str = "", subclass: str = "", luminosity: str = "
     return "{} ({}{} {})".format(final_name, star_class, subclass, luminosity)
 
 
-def map_edsm_class(edsm_class):
+def map_edsm_class(edsm_class) -> str:
     match edsm_class:
         case 'Earth-like world':
             return 'Earthlike body'
@@ -267,7 +302,8 @@ def map_edsm_class(edsm_class):
         case _:
             return edsm_class
 
-def parse_edsm_star_class(subtype):
+
+def parse_edsm_star_class(subtype) -> str:
     star_class = ""
     subclass = "0"
     match subtype:
