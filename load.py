@@ -203,7 +203,7 @@ def calc_system_value() -> tuple[int, int, int, int]:
     max_value += this.main_star
     min_max_value += this.main_star
     bodies_text = ""
-    for body_name, body_data in sorted(this.bodies.items(), key=lambda item: item[1].get_distance()):
+    for body_name, body_data in sorted(this.bodies.items(), key=lambda item: item[1].get_id()):
         bodies_text += "{} - {}{}{}{}:".format(body_name,
                                                body_data.get_type() if not body_data.is_star() else
                                                get_star_label(body_data.get_type(),
@@ -320,7 +320,7 @@ def edsm_worker(system_name: str) -> None:
                                   timeout=10)
         r.raise_for_status()
         this.edsm_bodies = r.json() or {}
-    except:
+    except requests.RequestException:
         this.edsm_bodies = None
 
     this.frame.event_generate('<<PioneerEDSMData>>', when='tail')
@@ -347,8 +347,10 @@ def edsm_data(event: tk.Event) -> None:
                     if body['isMainStar'] and this.main_star == 0:
                         this.main_star = value
                         this.main_star_type = get_star_label(star_class, subclass, body['luminosity']) + " (EDSM)"
+                        this.main_star_name = "Main star" if bodyname_insystem == this.starsystem \
+                            else "{} (Main star)".format(bodyname_insystem)
                     elif not body['isMainStar']:
-                        new_body = BodyData(bodyname_insystem)
+                        new_body = BodyData(bodyname_insystem, body['bodyId'])
                         new_body.set_base_values(value, value)
                         new_body.set_mapped_values(value, value)
                         new_body.set_honk_values(honk_value, honk_value)
@@ -386,7 +388,7 @@ def edsm_data(event: tk.Event) -> None:
                         min_value, min_mapped_value, min_honk_value = \
                         get_body_value(k, kt, tm, mass, not was_discovered, not was_mapped, odyssey_bonus)
 
-                    this.bodies[bodyname_insystem] = BodyData(bodyname_insystem)
+                    this.bodies[bodyname_insystem] = BodyData(bodyname_insystem, body['bodyId'])
                     this.planet_count += 1
                     this.scans.add(bodyname_insystem)
                     if not this.honked:
@@ -411,7 +413,7 @@ def edsm_data(event: tk.Event) -> None:
 def journal_entry(cmdr: str, is_beta: bool, system: str, station: str,
                   entry: MutableMapping[str, Any], state: Mapping[str, Any]) -> str:
     this.starsystem = state['SystemName']
-    this.game_version = state['GameVersion']
+    this.game_version = semantic_version.Version.coerce(state['GameVersion'])
     if entry['event'] == 'Fileheader' or entry['event'] == 'LoadGame':
         this.odyssey = entry.get('Odyssey', False)
     elif entry['event'] == 'Scan':
@@ -433,16 +435,10 @@ def journal_entry(cmdr: str, is_beta: bool, system: str, station: str,
                         else "{} (Main star)".format(bodyname_insystem)
                     this.main_star_type = get_star_label(entry['StarType'], entry['Subclass'], entry['Luminosity'])
                 else:
-                    body = BodyData(bodyname_insystem)
-                    body.set_base_values(value, value)
-                    body.set_mapped_values(value, value)
-                    body.set_honk_values(honk_value, honk_value)
-                    body.set_distance(distancels)
-                    body.set_star(True)
-                    body.set_type(entry['StarType'])
-                    body.set_subclass(entry['Subclass'])
-                    body.set_luminosity(entry['Luminosity'])
-                    body.set_mapped(True)
+                    body = BodyData(bodyname_insystem, entry['BodyID']).set_base_values(value, value) \
+                        .set_mapped_values(value, value).set_honk_values(honk_value, honk_value).set_star(True) \
+                        .set_type(entry['StarType']).set_subclass(entry['Subclass']).set_distance(distancels) \
+                        .set_mapped(True).set_luminosity(entry['Luminosity'])
                     this.bodies[bodyname_insystem] = body
 
                 if not this.honked:
@@ -474,18 +470,15 @@ def journal_entry(cmdr: str, is_beta: bool, system: str, station: str,
                         get_body_value(k, kt, tm, mass, not was_discovered, not was_mapped, odyssey_bonus)
 
                     if bodyname_insystem not in this.bodies:
-                        this.bodies[bodyname_insystem] = BodyData(bodyname_insystem)
+                        this.bodies[bodyname_insystem] = BodyData(bodyname_insystem, entry['BodyID'])
                         this.planet_count += 1
                         this.scans.add(bodyname_insystem)
                         if not this.honked:
                             this.body_count += 1
-                    this.bodies[bodyname_insystem].set_base_values(value, min_value)
-                    this.bodies[bodyname_insystem].set_honk_values(honk_value, min_honk_value)
-                    this.bodies[bodyname_insystem].set_distance(distancels)
-                    this.bodies[bodyname_insystem].set_type(planetclass)
-                    this.bodies[bodyname_insystem].set_terraformable(terraformable)
-                    this.bodies[bodyname_insystem].set_discovered(this.system_was_scanned)
-                    this.bodies[bodyname_insystem].set_was_mapped(this.system_was_mapped)
+                    this.bodies[bodyname_insystem].set_base_values(value, min_value) \
+                        .set_honk_values(honk_value, min_honk_value).set_distance(distancels).set_type(planetclass) \
+                        .set_terraformable(terraformable).set_discovered(this.system_was_scanned) \
+                        .set_was_mapped(this.system_was_mapped)
                     if this.bodies[bodyname_insystem].get_mapped_values()[1] == 0:
                         this.bodies[bodyname_insystem].set_mapped_values(int(mapped_value), int(min_mapped_value))
                     else:
@@ -520,7 +513,7 @@ def journal_entry(cmdr: str, is_beta: bool, system: str, station: str,
         this.map_count += 1
         bodyname_insystem = get_bodyname(entry['BodyName'])
         if bodyname_insystem not in this.bodies:
-            this.bodies[bodyname_insystem] = BodyData(bodyname_insystem)
+            this.bodies[bodyname_insystem] = BodyData(bodyname_insystem, entry['BodyID'])
             this.planet_count += 1
         else:
             # body exists, only replace its value with a "hidden" marker
@@ -559,7 +552,7 @@ def journal_entry(cmdr: str, is_beta: bool, system: str, station: str,
         for signal in entry['Signals']:
             if signal['Type'] == '$SAA_SignalType_Biological;':
                 if bodyname_insystem not in this.bodies:
-                    this.bodies[bodyname_insystem] = BodyData(bodyname_insystem)
+                    this.bodies[bodyname_insystem] = BodyData(bodyname_insystem, entry['BodyID'])
                     this.planet_count += 1
                     this.scans.add(bodyname_insystem)
                     if not this.honked:

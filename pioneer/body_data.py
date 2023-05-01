@@ -2,8 +2,9 @@ from typing import Self
 
 
 class BodyData:
-    def __init__(self, name):
+    def __init__(self, name: str, body_id: int):
         self.name: str = name
+        self.body_id: int = body_id
         self.type: str = ''
         self.subclass: str = ''
         self.luminosity: str = ''
@@ -20,6 +21,9 @@ class BodyData:
 
     def get_name(self) -> str:
         return self.name
+
+    def get_id(self) -> int:
+        return self.body_id
 
     def get_base_values(self) -> tuple[int, int]:
         return self.base_value[0], self.base_value[1]
