@@ -43,7 +43,7 @@ class This:
         self.total_label = None
         self.bodies: dict[str, BodyData] = {}
         self.odyssey = False
-        self.game_version = semantic_version.Version.coerce('0.0.0.0')
+        self.game_version = semantic_version.Version.coerce('0.0.0')
         self.min_value = None
         self.shorten_values = None
         self.show_details = None
@@ -429,10 +429,10 @@ def journal_entry(cmdr: str, is_beta: bool, system: str, station: str,
         this.non_body_count = 0
         this.scans = set()
 
-    this.game_version = semantic_version.Version.coerce(state['GameVersion'])
-    if entry['event'] == 'Fileheader' or entry['event'] == 'LoadGame':
-        this.odyssey = entry.get('Odyssey', False)
-    elif entry['event'] == 'Scan':
+    this.game_version = semantic_version.Version.coerce(state.get('GameVersion', '0.0.0'))
+    this.odyssey = state.get('Odyssey', False)
+
+    if entry['event'] == 'Scan':
         bodyname_insystem = get_bodyname(entry['BodyName'])
         navbeacon = False
         if entry['ScanType'] == 'NavBeaconDetail':
