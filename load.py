@@ -56,7 +56,6 @@ class This:
         self.non_body_count = 0
         self.scans = set()
         self.map_count = 0
-        self.main_star_id = None
         self.main_star = 0
         self.main_star_name = ""
         self.main_star_type = "Star"
@@ -412,7 +411,24 @@ def edsm_data(event: tk.Event) -> None:
 
 def journal_entry(cmdr: str, is_beta: bool, system: str, station: str,
                   entry: MutableMapping[str, Any], state: Mapping[str, Any]) -> str:
-    this.starsystem = state['SystemName']
+    system_changed = False
+    if system != this.starsystem:
+        this.starsystem = system
+        system_changed = True
+        this.main_star = 0
+        this.main_star_type = "Star"
+        this.main_star_name = ""
+        this.bodies = {}
+        this.honked = False
+        this.fully_scanned = False
+        this.system_was_scanned = False
+        this.system_was_mapped = False
+        this.planet_count = 0
+        this.map_count = 0
+        this.body_count = 0
+        this.non_body_count = 0
+        this.scans = set()
+
     this.game_version = semantic_version.Version.coerce(state['GameVersion'])
     if entry['event'] == 'Fileheader' or entry['event'] == 'LoadGame':
         this.odyssey = entry.get('Odyssey', False)
@@ -429,7 +445,7 @@ def journal_entry(cmdr: str, is_beta: bool, system: str, station: str,
                 distancels = float(entry['DistanceFromArrivalLS'])
                 k = get_starclass_k(entry['StarType'])
                 value, honk_value = get_star_value(k, mass, not was_discovered)
-                if entry['BodyID'] == this.main_star_id:
+                if entry['DistanceFromArrivalLS'] == 0.0:
                     this.main_star = value
                     this.main_star_name = "Main star" if this.starsystem == bodyname_insystem \
                         else "{} (Main star)".format(bodyname_insystem)
@@ -527,26 +543,6 @@ def journal_entry(cmdr: str, is_beta: bool, system: str, station: str,
 
         update_display()
 
-    elif entry['event'] == 'FSDJump':
-        this.main_star_id = entry['BodyID'] if 'BodyID' in entry else 0
-        this.main_star = 0
-        this.main_star_type = "Star"
-        this.main_star_name = ""
-        this.bodies = {}
-        this.honked = False
-        this.fully_scanned = False
-        this.system_was_scanned = False
-        this.system_was_mapped = False
-        this.planet_count = 0
-        this.map_count = 0
-        this.body_count = 0
-        this.non_body_count = 0
-        this.scans = set()
-        update_display()
-        this.scroll_canvas.yview_moveto(0.0)
-        if this.edsm_setting.get() == "Always":
-            edsm_fetch()
-
     elif entry['event'] == 'FSSBodySignals':
         bodyname_insystem = get_bodyname(entry['BodyName'])
         for signal in entry['Signals']:
@@ -558,6 +554,12 @@ def journal_entry(cmdr: str, is_beta: bool, system: str, station: str,
                     if not this.honked:
                         this.body_count += 1
                 this.bodies[bodyname_insystem].set_bio_signals(signal['Count'])
+
+    if system_changed:
+        update_display()
+        this.scroll_canvas.yview_moveto(0.0)
+        if this.edsm_setting.get() == "Always":
+            edsm_fetch()
 
     return ''  # No error
 
