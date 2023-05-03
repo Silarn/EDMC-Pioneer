@@ -412,7 +412,7 @@ def edsm_data(event: tk.Event) -> None:
 def journal_entry(cmdr: str, is_beta: bool, system: str, station: str,
                   entry: MutableMapping[str, Any], state: Mapping[str, Any]) -> str:
     system_changed = False
-    if system != this.starsystem:
+    if system and system != this.starsystem:
         this.starsystem = system
         system_changed = True
         this.main_star = 0
