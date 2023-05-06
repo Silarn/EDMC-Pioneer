@@ -9,6 +9,7 @@ import sys
 import threading
 import tkinter as tk
 from tkinter import ttk, Widget as tkWidget
+from traceback import print_exc
 from typing import Any, MutableMapping, Mapping
 from urllib.parse import quote
 
@@ -32,7 +33,7 @@ class This:
     """Holds module globals."""
 
     def __init__(self):
-        self.VERSION = '1.2.0'
+        self.VERSION = semantic_version.Version('1.2.0')
         self.formatter = Formatter()
         self.frame = None
         self.scroll_canvas = None
@@ -43,7 +44,7 @@ class This:
         self.total_label = None
         self.bodies: dict[str, BodyData] = {}
         self.odyssey = False
-        self.game_version = semantic_version.Version.coerce('0.0.0')
+        self.game_version = semantic_version.Version('0.0.0')
         self.min_value = None
         self.shorten_values = None
         self.show_details = None
@@ -101,6 +102,12 @@ def plugin_app(parent: tk.Frame) -> tk.Frame:
     this.scrollbar.grid(row=1, column=1, sticky=tk.NSEW)
     this.total_label = tk.Label(this.frame)
     this.total_label.grid(row=2, column=0, columnspan=2, sticky=tk.N)
+    update = version_check()
+    if update != '':
+        text = 'Version {} is now available'.format(update)
+        url = 'https://github.com/Silarn/EDMC-Pioneer/releases/tag/v{}'.format(update)
+        this.update_button = HyperlinkLabel(this.frame, text=text, url=url)
+        this.update_button.grid(row=3, columnspan=2, sticky=tk.N)
     update_display()
     theme.register(this.values_label)
     return this.frame
@@ -178,6 +185,22 @@ def parse_config() -> None:
     this.show_details = tk.BooleanVar(value=config.get_bool(key='pioneer_details', default=True))
     this.show_biological = tk.BooleanVar(value=config.get_bool(key='pioneer_biological', default=True))
     this.edsm_setting = tk.StringVar(value=config.get_str(key='pioneer_edsm', default='Never'))
+
+
+def version_check() -> str:
+    try:
+        req = requests.get(url='https://api.github.com/repos/Silarn/EDMC-Pioneer/releases/latest')
+        data = req.json()
+        if req.status_code != requests.codes.ok:
+            raise requests.RequestException
+    except requests.RequestException | requests.JSONDecodeError:
+        print_exc()
+        return ''
+
+    version = semantic_version.Version(data['tag_name'][1:])
+    if version > this.VERSION:
+        return str(version)
+    return ''
 
 
 def validate_int(val: str) -> bool:
