@@ -307,7 +307,7 @@ def map_edsm_class(edsm_class) -> str:
             return edsm_class
 
 
-def parse_edsm_star_class(subtype) -> str:
+def parse_edsm_star_class(subtype) -> tuple[str, str]:
     star_class = ""
     subclass = "0"
     match subtype:
@@ -355,6 +355,18 @@ def parse_edsm_star_class(subtype) -> str:
             star_class = 'MS'
         case 'S-type Star':
             star_class = 'S'
+        case 'Herbig Ae/Be Star':
+            star_class = 'AeBe'
+        case 'Wolf-Rayet Star':
+            star_class = 'W'
+        case 'Wolf-Rayet N Star':
+            star_class = 'WN'
+        case 'Wolf-Rayet NC Star':
+            star_class = 'WNC'
+        case 'Wolf-Rayet C Star':
+            star_class = 'WC'
+        case 'Wolf-Rayet O Star':
+            star_class = 'WO'
         case 'Neutron Star':
             star_class = 'N'
         case 'Black Hole':
