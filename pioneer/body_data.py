@@ -258,7 +258,7 @@ def get_star_label(star_class: str = "", subclass: str = "", luminosity: str = "
         if star_type == "main-sequence":
             star_type = "dwarf"
         name = "Red {} star"
-    elif star_class == "HeBe":
+    elif star_class == "AeBe":
         name = "Herbig Ae/Be star"
     elif star_class == "TTS":
         name = "T Tauri star"
