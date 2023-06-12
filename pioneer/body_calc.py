@@ -42,7 +42,7 @@ def get_planetclass_k(planet_class: str, terraformable: bool):
     return base, terraform, mult
 
 
-def get_star_value(k, mass, first_discoverer):
+def get_star_value(k: int, mass: float, first_discoverer: bool) -> tuple[int, int]:
     value = k + (mass * k / 66.25)
     honk_value = value / 3
     if first_discoverer:

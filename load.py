@@ -10,24 +10,33 @@ import threading
 import tkinter as tk
 from tkinter import ttk, Widget as tkWidget
 from traceback import print_exc
-from typing import Any, MutableMapping, Mapping
+from typing import Any, MutableMapping, Mapping, Optional
 from urllib.parse import quote
 
 import requests
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 import myNotebook as nb
+from ExploData.explo_data import db
+from ExploData.explo_data.RegionMap import findRegion
+from ExploData.explo_data.db import System, Planet, Star, Commander, SystemStatus
+from ExploData.explo_data.journal_parse import register_event_callbacks
 from config import config
+from pioneer.data import BodyValueData
 from theme import theme
 from EDMCLogging import get_main_logger
 import semantic_version
 
-from pioneer.body_data import BodyData, get_star_label, map_edsm_class, parse_edsm_star_class, get_body_shorthand
+from ExploData.explo_data.body_data.struct import PlanetData, StarData, load_planets, load_stars, get_main_star
+
+from pioneer.util import get_star_label, map_edsm_class, parse_edsm_star_class, get_body_shorthand
 from pioneer.body_calc import get_body_value, get_star_value, get_starclass_k, get_planetclass_k
 from pioneer.format_util import Formatter
 from ttkHyperlinkLabel import HyperlinkLabel
 
 logger = get_main_logger()
-
+efficiency_bonus = 1.25
 
 class This:
     """Holds module globals."""
@@ -35,6 +44,7 @@ class This:
     def __init__(self):
         self.VERSION = semantic_version.Version('1.2.0')
         self.formatter = Formatter()
+
         self.frame = None
         self.scroll_canvas = None
         self.scrollbar = None
@@ -42,36 +52,48 @@ class This:
         self.label = None
         self.values_label = None
         self.total_label = None
-        self.bodies: dict[str, BodyData] = {}
+
+        # DB
+        self.sql_session: Optional[Session] = None
+        self.migration_failed: bool = False
+
+        # Plugin state
         self.odyssey = False
         self.game_version = semantic_version.Version('0.0.0')
+        self.commander: Optional[Commander] = None
+        self.system: Optional[System] = None
+        self.system_was_scanned = False
+        self.system_was_mapped = False
+        self.bodies: dict[str, PlanetData | StarData] = {}
+        self.body_values: dict[str, BodyValueData] = {}
+        self.scans = set()
+        self.main_star_value: int = 0
+        self.main_star_name = ""
+        self.main_star_type = "Star"
+        self.honked = False
+        self.fully_scanned = False
+        self.map_count: int = 0
+        self.planet_count: int = 0
+
+        # Setting vars
         self.min_value = None
         self.shorten_values = None
         self.show_details = None
         self.show_biological = None
         self.edsm_setting = None
+
+        # EDSM
         self.edsm_session = None
         self.edsm_bodies = None
-        self.planet_count = 0
-        self.body_count = 0
-        self.non_body_count = 0
-        self.scans = set()
-        self.map_count = 0
-        self.main_star = 0
-        self.main_star_name = ""
-        self.main_star_type = "Star"
-        self.exo_earnings = 0
-        self.honked = False
-        self.fully_scanned = False
-        self.system_was_scanned = False
-        self.system_was_mapped = False
-        self.starsystem = ''
 
 
 this = This()
 
 
 def plugin_start3(plugin_dir):
+    db.init()
+    this.sql_session = Session(db.get_engine())
+    register_event_callbacks({'Scan', 'FSSDiscoveryScan', 'FSSAllBodiesFound', 'SAAScanComplete'}, process_data_event)
     return 'Pioneer'
 
 
@@ -210,7 +232,7 @@ def validate_int(val: str) -> bool:
 
 
 def calc_system_value() -> tuple[int, int, int, int]:
-    if this.main_star == 0:
+    if not this.main_star_value:
         this.values_label["text"] = "Main star not scanned.\nSystem already visited?"
         return 0, 0, 0, 0
     max_value = 0
@@ -220,80 +242,83 @@ def calc_system_value() -> tuple[int, int, int, int]:
     honk_sum = 0
     min_honk_sum = 0
     efficiency_bonus = 1.25
-    value_sum += this.main_star
-    min_value_sum += this.main_star
-    max_value += this.main_star
-    min_max_value += this.main_star
+    value_sum += this.main_star_value
+    min_value_sum += this.main_star_value
+    max_value += this.main_star_value
+    min_max_value += this.main_star_value
     bodies_text = ""
     for body_name, body_data in sorted(this.bodies.items(), key=lambda item: item[1].get_id()):
-        bodies_text += "{} - {}{}{}{}:".format(body_name,
-                                               body_data.get_type() if not body_data.is_star() else
-                                               get_star_label(body_data.get_type(),
-                                                              body_data.get_subclass(),
-                                                              body_data.get_luminosity()),
-                                               " <TC>" if body_data.is_terraformable() else "",
-                                               " >S<" if body_data.was_discovered() else "",
-                                               " >M<" if body_data.get_was_mapped() else "",
-                                               ) + "\n"
-        if body_data.is_mapped() is True:
-            val_text = "{} - {}".format(this.formatter.format_credits(body_data.get_mapped_values()[1]),
-                                        this.formatter.format_credits(body_data.get_mapped_values()[0])) \
-                if body_data.get_mapped_values()[1] != body_data.get_mapped_values()[0] \
-                else "{}".format(this.formatter.format_credits(body_data.get_mapped_values()[0]))
+        bodies_text += "{} - {}{}{}{}:".format(
+            body_name,
+            body_data.get_type() if type(body_data) is Planet else
+            get_star_label(body_data.get_type(),
+                           body_data.get_subclass(),
+                           body_data.get_luminosity()),
+            " <TC>" if type(body_data) is Planet and body_data.is_terraformable() else "",
+            " -S-" if body_data.was_discovered(this.commander.id) else "",
+            " -M-" if type(body_data) is Planet and body_data.was_mapped(this.commander.id) else "",
+        ) + "\n"
+        if type(body_data) is Planet and body_data.is_mapped(this.commander.id) is True:
+            val_text = "{} - {}".format(
+                this.formatter.format_credits(this.body_values[body_name].get_mapped_values()[1]),
+                this.formatter.format_credits(this.body_values[body_name].get_mapped_values()[0])) \
+                if this.body_values[body_name].get_mapped_values()[1] != this.body_values[body_name].get_mapped_values()[0] \
+                else "{}".format(this.formatter.format_credits(this.body_values[body_name].get_mapped_values()[0]))
             bodies_text += "Current Value (Max): {}".format(val_text) + "\n"
-            max_value += body_data.get_mapped_values()[0]
-            min_max_value += body_data.get_mapped_values()[1]
-            value_sum += body_data.get_mapped_values()[0]
-            min_value_sum += body_data.get_mapped_values()[1]
+            max_value += this.body_values[body_name].get_mapped_values()[0]
+            min_max_value += this.body_values[body_name].get_mapped_values()[1]
+            value_sum += this.body_values[body_name].get_mapped_values()[0]
+            min_value_sum += this.body_values[body_name].get_mapped_values()[1]
         else:
-            val_text = "{} - {}".format(this.formatter.format_credits(body_data.get_base_values()[1]),
-                                        this.formatter.format_credits(body_data.get_base_values()[0])) \
-                if body_data.get_base_values()[1] != body_data.get_base_values()[0] \
-                else "{}".format(this.formatter.format_credits(body_data.get_base_values()[0]))
+            val_text = "{} - {}".format(
+                this.formatter.format_credits(this.body_values[body_name].get_base_values()[1]),
+                this.formatter.format_credits(this.body_values[body_name].get_base_values()[0])) \
+                if this.body_values[body_name].get_base_values()[1] != this.body_values[body_name].get_base_values()[0] \
+                else "{}".format(this.formatter.format_credits(this.body_values[body_name].get_base_values()[0]))
             max_val_text = "{} - {}".format(
-                this.formatter.format_credits(int(body_data.get_mapped_values()[1] * efficiency_bonus)),
-                this.formatter.format_credits(int(body_data.get_mapped_values()[0] * efficiency_bonus))
-            ) if body_data.get_mapped_values()[1] != body_data.get_mapped_values()[0] \
+                this.formatter.format_credits(int(this.body_values[body_name].get_mapped_values()[1] * efficiency_bonus)),
+                this.formatter.format_credits(int(this.body_values[body_name].get_mapped_values()[0] * efficiency_bonus))
+            ) if this.body_values[body_name].get_mapped_values()[1] != this.body_values[body_name].get_mapped_values()[0] \
                 else "{}".format(
-                this.formatter.format_credits(int(body_data.get_mapped_values()[0] * efficiency_bonus))
+                this.formatter.format_credits(int(this.body_values[body_name].get_mapped_values()[0] * efficiency_bonus))
             )
             bodies_text += "Current Value: {}\nMax Value: {}".format(val_text, max_val_text) + "\n"
-            max_value += int(body_data.get_mapped_values()[0] * efficiency_bonus)
-            min_max_value += int(body_data.get_mapped_values()[1] * efficiency_bonus)
-            value_sum += body_data.get_base_values()[0]
-            min_value_sum += body_data.get_base_values()[1]
+            max_value += int(this.body_values[body_name].get_mapped_values()[0] * efficiency_bonus)
+            min_max_value += int(this.body_values[body_name].get_mapped_values()[1] * efficiency_bonus)
+            value_sum += this.body_values[body_name].get_base_values()[0]
+            min_value_sum += this.body_values[body_name].get_base_values()[1]
         if this.honked:
-            if body_data.get_honk_values()[0] != body_data.get_honk_values()[1]:
+            if this.body_values[body_name].get_honk_values()[0] != this.body_values[body_name].get_honk_values()[1]:
                 bodies_text += "Honk Value: {} - {}".format(
-                    this.formatter.format_credits(body_data.get_honk_values()[1]),
-                    this.formatter.format_credits(body_data.get_honk_values()[0])) + "\n"
+                    this.formatter.format_credits(this.body_values[body_name].get_honk_values()[1]),
+                    this.formatter.format_credits(this.body_values[body_name].get_honk_values()[0])) + "\n"
             else:
                 bodies_text += "Honk Value: {}".format(
-                    this.formatter.format_credits(body_data.get_honk_values()[0])
+                    this.formatter.format_credits(this.body_values[body_name].get_honk_values()[0])
                 ) + "\n"
-            value_sum += body_data.get_honk_values()[0]
-            min_value_sum += body_data.get_honk_values()[1]
-            honk_sum += body_data.get_honk_values()[0]
-            min_honk_sum += body_data.get_honk_values()[1]
-        max_value += body_data.get_honk_values()[0]
-        min_max_value += body_data.get_honk_values()[1]
+            value_sum += this.body_values[body_name].get_honk_values()[0]
+            min_value_sum += this.body_values[body_name].get_honk_values()[1]
+            honk_sum += this.body_values[body_name].get_honk_values()[0]
+            min_honk_sum += this.body_values[body_name].get_honk_values()[1]
+        max_value += this.body_values[body_name].get_honk_values()[0]
+        min_max_value += this.body_values[body_name].get_honk_values()[1]
         bodies_text += "------------------" + "\n"
     this.values_label["text"] = "{}:\n   {}\n   {} + {} = {}".format(
         this.main_star_name,
         this.main_star_type,
-        this.formatter.format_credits(this.main_star),
+        this.formatter.format_credits(this.main_star_value),
         this.formatter.format_credits(honk_sum) if honk_sum == min_honk_sum else "{} to {}".format(
             this.formatter.format_credits(min_honk_sum),
             this.formatter.format_credits(honk_sum)
         ),
-        (this.formatter.format_credits(this.main_star + honk_sum)) if honk_sum == min_honk_sum else "{} to {}".format(
-            this.formatter.format_credits(this.main_star + min_honk_sum),
-            this.formatter.format_credits(this.main_star + honk_sum)
+        (this.formatter.format_credits(this.main_star_value + honk_sum)) if honk_sum == min_honk_sum else "{} to {}".format(
+            this.formatter.format_credits(this.main_star_value + min_honk_sum),
+            this.formatter.format_credits(this.main_star_value + honk_sum)
         )) + "\n"
     this.values_label["text"] += "------------------" + "\n"
     this.values_label["text"] += bodies_text
     if not this.system_was_scanned:
-        total_bodies = this.body_count + this.non_body_count
+        total_bodies = this.system.body_count + this.system.non_body_count
         if this.fully_scanned and total_bodies == len(this.scans):
             this.values_label["text"] += "Fully Scanned Bonus: {}".format(
                 this.formatter.format_credits(total_bodies * 1000)
@@ -319,16 +344,16 @@ def calc_system_value() -> tuple[int, int, int, int]:
     return value_sum, min_value_sum, max_value, min_max_value
 
 
-def get_bodyname(fullname: str = "") -> str:
-    if fullname.startswith(this.starsystem + ' '):
-        bodyname = fullname[len(this.starsystem + ' '):]
+def get_body_name(fullname: str = "") -> str:
+    if fullname.startswith(this.system.name + ' '):
+        body_name = fullname[len(this.system.name + ' '):]
     else:
-        bodyname = fullname
-    return bodyname
+        body_name = fullname
+    return body_name
 
 
 def edsm_fetch() -> None:
-    thread = threading.Thread(target=edsm_worker, name='EDSM worker', args=(this.starsystem,))
+    thread = threading.Thread(target=edsm_worker, name='EDSM worker', args=(this.system.name,))
     thread.daemon = True
     thread.start()
 
@@ -349,234 +374,166 @@ def edsm_worker(system_name: str) -> None:
 
 
 def edsm_data(event: tk.Event) -> None:
+    body_count = 0
     if this.edsm_bodies is None:
         return
 
     for body in this.edsm_bodies.get('bodies', []):
-        bodyname_insystem = get_bodyname(body['name'])
-        if bodyname_insystem not in this.bodies:
+        body_short_name = get_body_name(body['name'])
+        if body_short_name not in this.bodies:
             if body['type'] == 'Star':
                 try:
                     mass = body['solarMasses']
-                    distancels = float(body['distanceToArrival'])
+                    distance = float(body['distanceToArrival'])
                     if body['spectralClass']:
                         star_class = body['spectralClass'][:-1]
                         subclass = body['spectralClass'][-1]
                     else:
-                        star_class, subclass = parse_edsm_star_class(body['subType'])
+                        star_class = parse_edsm_star_class(body['subType'])
+                        subclass = 0
                     k = get_starclass_k(star_class)
                     value, honk_value = get_star_value(k, mass, False)
-                    if body['isMainStar'] and this.main_star == 0:
-                        this.main_star = value
+                    if body['isMainStar'] and this.main_star_value == 0:
+                        this.main_star_value = value
                         this.main_star_type = get_star_label(star_class, subclass, body['luminosity']) + " (EDSM)"
-                        this.main_star_name = "Main star" if bodyname_insystem == this.starsystem \
-                            else "{} (Main star)".format(bodyname_insystem)
+                        this.main_star_name = "Main star" if body_short_name == this.system.name \
+                            else "{} (Main star)".format(body_short_name)
                     elif not body['isMainStar']:
-                        new_body = BodyData(bodyname_insystem, body['bodyId'])
+                        new_body = BodyValueData(body_short_name, body['bodyId'])
                         new_body.set_base_values(value, value)
                         new_body.set_mapped_values(value, value)
                         new_body.set_honk_values(honk_value, honk_value)
-                        new_body.set_distance(distancels)
-                        new_body.set_star(True)
-                        new_body.set_type(star_class)
-                        new_body.set_subclass(subclass)
-                        new_body.set_luminosity(body['luminosity'])
-                        new_body.set_mapped(True)
-                        this.bodies[bodyname_insystem] = new_body
+                        this.body_values[body_short_name] = new_body
+
+                    star: StarData.from_journal(this.system, body_short_name, body['bodyId'], this.sql_session)
+                    if body_short_name not in this.bodies:
+                        star_data = StarData.from_journal(this.system, body_short_name, body['bodyId'], this.sql_session)
+                    else:
+                        star_data = this.bodies[body_short_name]
+                    star_data.set_type(star_class)
+                    star_data.set_subclass(subclass)
+                    star_data.set_luminosity(body['luminosity'])
+                    star_data.set_distance(body['distanceToArrival'])
+                    this.bodies[body_short_name] = star_data
 
                     if not this.honked:
-                        this.body_count += 1
+                        body_count += 1
 
                     this.system_was_scanned = True
-                    this.scans.add(bodyname_insystem)
+                    this.scans.add(body_short_name)
 
                 except Exception as e:
                     logger.error(e)
 
             elif body['type'] == 'Planet':
                 try:
-                    efficiency_bonus = 1.25
+                    if body_short_name in this.bodies:
+                        planet = this.bodies[body_short_name]
+                    else:
+                        planet = PlanetData.from_journal(this.system, body_short_name, body['bodyId'], this.sql_session)
                     odyssey_bonus = this.odyssey or this.game_version.major >= 4
-                    terraformable = True if body['terraformingState'] == 'Candidate for terraforming' else False
-                    distancels = float(body['distanceToArrival'])
-                    planetclass = map_edsm_class(body['subType'])
+                    terraformable = 'Terraformable' if body['terraformingState'] == 'Candidate for terraforming' \
+                        else None
+                    distance = float(body['distanceToArrival'])
+                    planet_class = map_edsm_class(body['subType'])
                     mass = float(body['earthMasses'])
-                    was_discovered = True
-                    was_mapped = False
+                    was_discovered = planet.was_discovered(this.commander.id)
+                    was_mapped = planet.was_mapped(this.commander.id)
                     this.system_was_scanned = True
 
-                    k, kt, tm = get_planetclass_k(planetclass, terraformable)
+                    k, kt, tm = get_planetclass_k(planet_class, terraformable == 'Terraformable')
                     value, mapped_value, honk_value, \
                         min_value, min_mapped_value, min_honk_value = \
                         get_body_value(k, kt, tm, mass, not was_discovered, not was_mapped, odyssey_bonus)
 
-                    this.bodies[bodyname_insystem] = BodyData(bodyname_insystem, body['bodyId'])
+                    planet_values = BodyValueData(body_short_name, body['bodyId'])
                     this.planet_count += 1
-                    this.scans.add(bodyname_insystem)
+                    this.scans.add(body_short_name)
                     if not this.honked:
-                        this.body_count += 1
-                    this.bodies[bodyname_insystem].set_base_values(value, min_value)
-                    this.bodies[bodyname_insystem].set_honk_values(honk_value, min_honk_value)
-                    this.bodies[bodyname_insystem].set_distance(distancels)
-                    this.bodies[bodyname_insystem].set_type(planetclass)
-                    this.bodies[bodyname_insystem].set_terraformable(terraformable)
-                    if this.bodies[bodyname_insystem].get_mapped_values()[1] == 0:
-                        this.bodies[bodyname_insystem].set_mapped_values(int(mapped_value), int(min_mapped_value))
+                        body_count += 1
+                    planet_values.set_base_values(value, min_value)
+                    planet_values.set_honk_values(honk_value, min_honk_value)
+                    planet.set_distance(distance)
+                    planet.set_type(planet_class)
+                    planet.set_terraform_state(terraformable)
+                    if planet_values.get_mapped_values()[1] == 0:
+                        planet_values.set_mapped_values(int(mapped_value), int(min_mapped_value))
                     else:
-                        this.bodies[bodyname_insystem].set_mapped_values(int(mapped_value * efficiency_bonus),
-                                                                         int(min_mapped_value * efficiency_bonus))
+                        planet_values.set_mapped_values(int(mapped_value * efficiency_bonus),
+                                                        int(min_mapped_value * efficiency_bonus))
+
+                    this.bodies[body_short_name] = planet
+                    this.body_values[body_short_name] = planet_values
 
                 except Exception as e:
                     logger.error(e)
 
+    if this.system.body_count < body_count:
+        this.system.body_count = body_count
+        this.sql_session.commit()
     update_display()
+
+
+def reset() -> None:
+    """
+    Reset system data, typically when the location changes
+    """
+
+    this.main_star_value = 0
+    this.main_star_type = "Star"
+    this.main_star_name = ""
+    this.bodies = {}
+    this.body_values = {}
+    this.honked = False
+    this.fully_scanned = False
+    this.system_was_scanned = False
+    this.system_was_mapped = False
+    this.planet_count = 0
+    this.map_count = 0
+    this.scans = set()
 
 
 def journal_entry(cmdr: str, is_beta: bool, system: str, station: str,
                   entry: MutableMapping[str, Any], state: Mapping[str, Any]) -> str:
+
+    if this.migration_failed:
+        return ''
+
     system_changed = False
-    if system and system != this.starsystem:
-        this.starsystem = system
+    # this.game_version = semantic_version.Version.coerce(state.get('GameVersion', '0.0.0'))
+    # this.odyssey = state.get('Odyssey', False)
+    if not state['StarPos']:
+        return ''
+    if system and (not this.system or system != this.system.name):
+        reset()
         system_changed = True
-        this.main_star = 0
-        this.main_star_type = "Star"
-        this.main_star_name = ""
-        this.bodies = {}
-        this.honked = False
-        this.fully_scanned = False
-        this.system_was_scanned = False
-        this.system_was_mapped = False
-        this.planet_count = 0
-        this.map_count = 0
-        this.body_count = 0
-        this.non_body_count = 0
-        this.scans = set()
+        this.system = this.sql_session.scalar(select(System).where(System.name == system))
+        if not this.system:
+            this.system = System(name=system)
+            this.sql_session.add(this.system)
+            this.system.x = state['StarPos'][0]
+            this.system.y = state['StarPos'][1]
+            this.system.z = state['StarPos'][2]
+            sector = findRegion(this.system.x, this.system.y, this.system.z)
+            this.system.region = sector[0] if sector is not None else None
+        this.bodies = load_planets(this.system, this.sql_session) | load_stars(this.system, this.sql_session)
+        main_star = get_main_star(this.system, this.sql_session)
+        if main_star:
+            this.main_star_name = "Main star" if this.system == main_star.name \
+                else "{} (Main star)".format(main_star.name)
+            this.main_star_type = get_star_label(main_star.type, main_star.subclass, main_star.luminosity)
+
+    if cmdr and not this.commander:
+        stmt = select(Commander).where(Commander.name == cmdr)
+        result = this.sql_session.scalars(stmt)
+        this.commander = result.first()
+        if not this.commander:
+            this.commander = Commander(name=cmdr)
+            this.sql_session.add(this.commander)
+            this.sql_session.commit()
 
     this.game_version = semantic_version.Version.coerce(state.get('GameVersion', '0.0.0'))
     this.odyssey = state.get('Odyssey', False)
-
-    if entry['event'] == 'Scan':
-        bodyname_insystem = get_bodyname(entry['BodyName'])
-        navbeacon = False
-        if entry['ScanType'] == 'NavBeaconDetail':
-            navbeacon = True
-        if 'PlanetClass' not in entry:
-            # That's no moon!
-            if 'StarType' in entry:
-                mass = entry['StellarMass']
-                was_discovered = True if navbeacon else bool(entry['WasDiscovered'])
-                distancels = float(entry['DistanceFromArrivalLS'])
-                k = get_starclass_k(entry['StarType'])
-                value, honk_value = get_star_value(k, mass, not was_discovered)
-                if entry['DistanceFromArrivalLS'] == 0.0:
-                    this.main_star = value
-                    this.main_star_name = "Main star" if this.starsystem == bodyname_insystem \
-                        else "{} (Main star)".format(bodyname_insystem)
-                    this.main_star_type = get_star_label(entry['StarType'], entry['Subclass'], entry['Luminosity'])
-                else:
-                    body = BodyData(bodyname_insystem, entry['BodyID']).set_base_values(value, value) \
-                        .set_mapped_values(value, value).set_honk_values(honk_value, honk_value).set_star(True) \
-                        .set_type(entry['StarType']).set_subclass(entry['Subclass']).set_distance(distancels) \
-                        .set_mapped(True).set_luminosity(entry['Luminosity'])
-                    this.bodies[bodyname_insystem] = body
-
-                if not this.honked:
-                    this.body_count += 1
-
-            if bool(entry["WasDiscovered"]) or navbeacon:
-                this.system_was_scanned = True
-            this.scans.add(bodyname_insystem)
-            update_display()
-        else:
-            try:
-                efficiency_bonus = 1.25
-                odyssey_bonus = this.odyssey or this.game_version.major >= 4
-                # If we get any key-not-in-dict errors, then this body probably
-                # wasn't interesting in the first place
-                if bodyname_insystem not in this.bodies or this.bodies[bodyname_insystem].get_base_values()[0] == 0:
-                    terraformable = bool(entry['TerraformState'])
-                    distancels = float(entry['DistanceFromArrivalLS'])
-                    planetclass = entry['PlanetClass']
-                    mass = float(entry['MassEM'])
-                    was_discovered = True if navbeacon else bool(entry['WasDiscovered'])
-                    was_mapped = True if navbeacon else bool(entry['WasMapped'])
-                    this.system_was_scanned = True if was_discovered else this.system_was_scanned
-                    this.system_was_mapped = True if was_mapped else this.system_was_mapped
-
-                    k, kt, tm = get_planetclass_k(planetclass, terraformable)
-                    value, mapped_value, honk_value, \
-                        min_value, min_mapped_value, min_honk_value = \
-                        get_body_value(k, kt, tm, mass, not was_discovered, not was_mapped, odyssey_bonus)
-
-                    if bodyname_insystem not in this.bodies:
-                        this.bodies[bodyname_insystem] = BodyData(bodyname_insystem, entry['BodyID'])
-                        this.planet_count += 1
-                        this.scans.add(bodyname_insystem)
-                        if not this.honked:
-                            this.body_count += 1
-                    this.bodies[bodyname_insystem].set_base_values(value, min_value) \
-                        .set_honk_values(honk_value, min_honk_value).set_distance(distancels).set_type(planetclass) \
-                        .set_terraformable(terraformable).set_discovered(this.system_was_scanned) \
-                        .set_was_mapped(this.system_was_mapped)
-                    if this.bodies[bodyname_insystem].get_mapped_values()[1] == 0:
-                        this.bodies[bodyname_insystem].set_mapped_values(int(mapped_value), int(min_mapped_value))
-                    else:
-                        this.bodies[bodyname_insystem].set_mapped_values(int(mapped_value * efficiency_bonus),
-                                                                         int(min_mapped_value * efficiency_bonus))
-
-                update_display()
-
-            except Exception as e:
-                logger.error(e)
-
-    elif entry['event'] == 'FSSDiscoveryScan':
-        this.honked = True
-        this.body_count = entry["BodyCount"]
-        this.non_body_count = entry['NonBodyCount']
-        if entry["Progress"] == 1.0 and not this.fully_scanned:
-            this.fully_scanned = True
-            this.system_was_scanned = True
-            if this.edsm_setting.get() == "After Honk":
-                edsm_fetch()
-        update_display()
-
-    elif entry['event'] == 'FSSAllBodiesFound':
-        this.fully_scanned = True
-        update_display()
-
-    elif entry['event'] == 'SAAScanComplete':
-        efficiency_bonus = 1.25
-        target = int(entry['EfficiencyTarget'])
-        used = int(entry['ProbesUsed'])
-        was_efficient = True if target >= used else False
-        this.map_count += 1
-        bodyname_insystem = get_bodyname(entry['BodyName'])
-        if bodyname_insystem not in this.bodies:
-            this.bodies[bodyname_insystem] = BodyData(bodyname_insystem, entry['BodyID'])
-            this.planet_count += 1
-        else:
-            # body exists, only replace its value with a "hidden" marker
-            map_val, map_val_max = this.bodies[bodyname_insystem].get_mapped_values()
-            final_val = (
-                int(map_val * efficiency_bonus) if was_efficient else map_val,
-                int(map_val_max * efficiency_bonus) if was_efficient else map_val_max
-            )
-            this.bodies[bodyname_insystem].set_mapped_values(final_val[0], final_val[1])
-        this.bodies[bodyname_insystem].set_mapped(True)
-
-        update_display()
-
-    elif entry['event'] == 'FSSBodySignals':
-        bodyname_insystem = get_bodyname(entry['BodyName'])
-        for signal in entry['Signals']:
-            if signal['Type'] == '$SAA_SignalType_Biological;':
-                if bodyname_insystem not in this.bodies:
-                    this.bodies[bodyname_insystem] = BodyData(bodyname_insystem, entry['BodyID'])
-                    this.planet_count += 1
-                    this.scans.add(bodyname_insystem)
-                    if not this.honked:
-                        this.body_count += 1
-                this.bodies[bodyname_insystem].set_bio_signals(signal['Count'])
 
     if system_changed:
         update_display()
@@ -587,8 +544,116 @@ def journal_entry(cmdr: str, is_beta: bool, system: str, station: str,
     return ''  # No error
 
 
+def process_data_event(entry: Mapping[str, Any]) -> None:
+    match entry['event']:
+        case 'Scan':
+            body_short_name = get_body_name(entry['BodyName'])
+            body = None
+            if 'StarType' in entry:
+                body = StarData.from_journal(this.system, body_short_name, entry['BodyID'], this.sql_session)
+            if 'PlanetClass' in entry:
+                body = PlanetData.from_journal(this.system, body_short_name, entry['BodyId'], this.sql_session)
+            process_body_values(body)
+            update_display()
+        case 'FSSDiscoveryScan':
+            if entry['Progress'] == 1.0 and not this.fully_scanned:
+                this.fully_scanned = True
+                this.system_was_scanned = True
+                if this.edsm_setting.get() == "After Honk":
+                    edsm_fetch()
+            update_display()
+        case 'FSSAllBodiesFound':
+            this.fully_scanned = True
+            update_display()
+        case 'SAAScanComplete':
+            body_short_name = get_body_name(entry['BodyName'])
+            this.map_count += 1
+            if body_short_name in this.bodies:
+                planet = this.bodies[body_short_name]
+            else:
+                planet = PlanetData.from_journal(this.system, body_short_name, entry['BodyID'], this.sql_session)
+            if body_short_name in this.body_values:
+                body_value = this.body_values[body_short_name]
+                map_val, map_val_max = body_value.get_mapped_values()
+                final_val = (
+                    int(map_val * efficiency_bonus) if planet.was_efficient(this.commander.id) else map_val,
+                    int(map_val_max * efficiency_bonus) if planet.was_efficient(this.commander.id) else map_val_max
+                )
+                body_value.set_mapped_values(final_val[0], final_val[1])
+            else:
+                body_value = BodyValueData(body_short_name, entry['BodyID'])
+            this.bodies[body_short_name] = planet
+            this.body_values[body_short_name] = body_value
+
+
+
+def process_body_values(body: PlanetData | StarData | None) -> None:
+    if not body:
+        return
+
+    if type(body) is StarData:
+        k = get_starclass_k(body.get_type())
+        value, honk_value = get_star_value(k, body.get_mass(), not body.was_discovered(this.commander.id))
+        if body.get_distance() == 0.0:
+            this.main_star_value = value
+            this.main_star_name = "Main star" if this.system.name == body.get_name() \
+                else "{} (Main star)".format(body.get_name())
+            this.main_star_type = get_star_label(body.get_type(), body.get_subclass(), body.get_luminosity())
+        else:
+            body_value = BodyValueData(body.get_name(), body.get_id())
+            body_value.set_base_values(value, value).set_mapped_values(value, value).set_honk_values(honk_value, honk_value)
+            this.body_values[body.get_name()] = body_value
+
+        status = get_system_status()
+        if not status.honked:
+            this.system.body_count += 1
+            this.sql_session.commit()
+
+        if body.was_discovered(this.commander.id):
+            this.system_was_scanned = True
+
+        this.scans.add(body.get_name())
+
+    if type(body) is PlanetData:
+        odyssey_bonus = this.odyssey or this.game_version.major >= 4
+        if body.get_name() not in this.body_values or this.body_values[body.get_name()].get_base_values()[0] == 0:
+            this.system_was_scanned = True if body.was_discovered(this.commander.id) else this.system_was_scanned
+            this.system_was_mapped = True if body.was_mapped(this.commander.id) else this.system_was_mapped
+
+            k, kt, tm = get_planetclass_k(body.get_type(), body.is_terraformable())
+            value, mapped_value, honk_value, \
+                min_value, min_mapped_value, min_honk_value = \
+                get_body_value(k, kt, tm, body.get_mass(), not body.was_discovered(this.commander.id),
+                               not body.was_mapped(this.commander.id), odyssey_bonus)
+
+            if body.get_name() not in this.body_values:
+                body_value = BodyValueData(body.get_name(), body.get_id())
+            else:
+                body_value = this.body_values[body.get_name()]
+
+            body_value.set_base_values(value, min_value).set_honk_values(honk_value, min_honk_value)
+            if body_value.get_mapped_values()[1] == 0:
+                body_value.set_mapped_values(int(mapped_value), int(min_mapped_value))
+            else:
+                body_value.set_mapped_values(int(mapped_value * efficiency_bonus),
+                                             int(min_mapped_value * efficiency_bonus))
+            this.body_values[body.get_name()] = body_value
+
+    this.bodies[body.get_name()] = body
+
+
+def get_system_status() -> SystemStatus:
+    statuses: list[SystemStatus] = this.system.statuses
+    statuses = list(filter(lambda item: item.commander_id == this.commander.id, statuses))
+    if len(statuses):
+        status = statuses[0]
+    else:
+        status = SystemStatus(system_id=this.system.id, commander_id=this.commander.id)
+        this.sql_session.add(status)
+    return status
+
+
 def update_display() -> None:
-    efficiency_bonus = 1.25
     valuable_body_names = [
         body_name
         for body_name, body_data
@@ -596,7 +661,8 @@ def update_display() -> None:
             this.bodies.items(),
             key=lambda item: item[1].get_distance()
         )
-        if body_data.get_mapped_values()[0] * efficiency_bonus >= this.min_value.get() and not body_data.is_mapped()
+        if this.body_values[body_name].get_mapped_values()[0] * efficiency_bonus >= this.min_value.get()
+           and not body_data.is_mapped(this.commander.id)
     ]
     exobio_body_names = [
         '%s (%d)' % (body_name, body_data.get_bio_signals())
@@ -605,12 +671,12 @@ def update_display() -> None:
             this.bodies.items(),
             key=lambda item: item[1].get_distance()
         )
-        if body_data.get_bio_signals() > 0 and not body_data.is_mapped()
+        if body_data.get_bio_signals() > 0 and not body_data.is_mapped(this.commander.id)
     ]
 
     def format_body(body_name: str) -> str:
         # template: NAME (VALUE, DIST), …
-        body_value = int(this.bodies[body_name].get_mapped_values()[0] * efficiency_bonus)
+        body_value = int(this.body_values[body_name].get_mapped_values()[0] * efficiency_bonus)
         body_distance = this.bodies[body_name].get_distance()
         if body_value >= this.min_value.get():
             return '%s%s (max %s, %s)' % \
@@ -621,14 +687,14 @@ def update_display() -> None:
         else:
             return '%s'
 
-    if this.bodies or this.main_star > 0:
-        if this.fully_scanned and len(this.scans) >= this.body_count:
+    if this.bodies or this.main_star_value > 0:
+        if this.fully_scanned and len(this.scans) >= this.system.body_count:
             text = 'Pioneer:'
         else:
             text = 'Pioneer: Scanning'
         if this.honked:
             text += ' (H)'
-        if this.fully_scanned and len(this.scans) >= this.body_count:
+        if this.fully_scanned and len(this.scans) >= this.system.body_count:
             if this.system_was_scanned:
                 text += ' (S)'
             else:
@@ -659,7 +725,7 @@ def update_display() -> None:
         if text[-1] != '\n':
             text += "\n"
 
-        text += 'B#: {} NB#: {}'.format(this.body_count, this.non_body_count)
+        text += 'B#: {} NB#: {}'.format(this.system.body_count, this.system.non_body_count)
         this.label['text'] = text
     else:
         this.label['text'] = 'Pioneer: Nothing Scanned'

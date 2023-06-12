@@ -1,123 +1,7 @@
-from typing import Self
+from ExploData.explo_data.body_data.struct import PlanetData
 
 
-class BodyData:
-    def __init__(self, name: str, body_id: int):
-        self.name: str = name
-        self.body_id: int = body_id
-        self.type: str = ''
-        self.subclass: str = ''
-        self.luminosity: str = ''
-        self.terraformable: bool = False
-        self.distance: float = 0
-        self.base_value: tuple[int, int] = (0, 0)
-        self.mapped_value: tuple[float, float] = (1.25, 1.25)
-        self.honk_value: tuple[int, int] = (0, 0)
-        self.discovered: bool = False
-        self.mapped: bool = False
-        self.was_mapped: bool = False
-        self.bio_signals: int = 0
-        self.is_a_star: bool = False
-
-    def get_name(self) -> str:
-        return self.name
-
-    def get_id(self) -> int:
-        return self.body_id
-
-    def get_base_values(self) -> tuple[int, int]:
-        return self.base_value[0], self.base_value[1]
-
-    def set_base_values(self, value: int, min_value: int) -> Self:
-        self.base_value = (value, min_value)
-        return self
-
-    def get_mapped_values(self) -> tuple[float, float]:
-        return self.mapped_value[0], self.mapped_value[1]
-
-    def set_mapped_values(self, value: float, min_value: float) -> Self:
-        self.mapped_value = (value, min_value)
-        return self
-
-    def get_honk_values(self) -> tuple[int, int]:
-        return self.honk_value[0], self.honk_value[1]
-
-    def set_honk_values(self, value: int, min_value: int) -> Self:
-        self.honk_value = (value, min_value)
-        return self
-
-    def was_discovered(self) -> bool:
-        return self.discovered
-
-    def set_discovered(self, value: bool) -> Self:
-        self.discovered = value
-        return self
-
-    def is_mapped(self) -> bool:
-        return self.mapped
-
-    def set_mapped(self, value: bool) -> Self:
-        self.mapped = value
-        return self
-
-    def get_was_mapped(self) -> bool:
-        return self.was_mapped
-
-    def set_was_mapped(self, value: bool) -> Self:
-        self.was_mapped = value
-        return self
-
-    def get_bio_signals(self) -> int:
-        return self.bio_signals
-
-    def set_bio_signals(self, value: int) -> Self:
-        self.bio_signals = value
-        return self
-
-    def get_distance(self) -> float:
-        return self.distance
-
-    def set_distance(self, value: float) -> Self:
-        self.distance = value
-        return self
-
-    def get_type(self) -> str:
-        return self.type
-
-    def set_type(self, value: str) -> Self:
-        self.type = value
-        return self
-
-    def get_subclass(self) -> str:
-        return self.subclass
-
-    def set_subclass(self, value: str) -> Self:
-        self.subclass = value
-        return self
-
-    def get_luminosity(self) -> str:
-        return self.luminosity
-
-    def set_luminosity(self, value: str) -> Self:
-        self.luminosity = value
-        return self
-
-    def is_terraformable(self) -> bool:
-        return self.terraformable
-
-    def set_terraformable(self, value: bool) -> Self:
-        self.terraformable = value
-        return self
-
-    def is_star(self) -> bool:
-        return self.is_a_star
-
-    def set_star(self, value: bool) -> Self:
-        self.is_a_star = value
-        return self
-
-
-def get_body_shorthand(body: BodyData) -> str:
+def get_body_shorthand(body: PlanetData) -> str:
     match body.get_type():
         case 'Icy body':
             tag = "I"
@@ -163,12 +47,12 @@ def get_body_shorthand(body: BodyData) -> str:
     return " [{}]{}{}{}".format(
         tag,
         " <TC>" if body.is_terraformable() else "",
-        " >S<" if body.was_discovered() else "",
-        " >M<" if body.get_was_mapped() else ""
+        " -S-" if body.was_discovered() else "",
+        " -M-" if body.was_mapped() else ""
     )
 
 
-def get_star_label(star_class: str = "", subclass: str = "", luminosity: str = "") -> str:
+def get_star_label(star_class: str = "", subclass: int = 0, luminosity: str = "") -> str:
     name = "Star"
     star_type = "main-sequence"
     if luminosity == "Ia0":
@@ -307,9 +191,8 @@ def map_edsm_class(edsm_class) -> str:
             return edsm_class
 
 
-def parse_edsm_star_class(subtype) -> tuple[str, str]:
-    star_class = ""
-    subclass = "0"
+def parse_edsm_star_class(subtype: str) -> str:
+    star_class = ''
     match subtype:
         case 'White Dwarf (D) Star':
             star_class = 'D'
@@ -374,4 +257,4 @@ def parse_edsm_star_class(subtype) -> tuple[str, str]:
         case 'Supermassive Black Hole':
             star_class = 'SupermassiveBlackHole'
 
-    return star_class, subclass
+    return star_class
