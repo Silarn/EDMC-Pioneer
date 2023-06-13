@@ -80,7 +80,6 @@ class This:
         self.main_star_value: int = 0
         self.main_star_name = ""
         self.main_star_type = "Star"
-        self.fully_scanned = False
         self.map_count: int = 0
         self.planet_count: int = 0
         self.non_body_count: int = 0
@@ -614,7 +613,6 @@ def reset() -> None:
     this.body_values = {}
     this.non_bodies = {}
     this.honked = False
-    this.fully_scanned = False
     this.system_was_scanned = False
     this.system_was_mapped = False
     this.planet_count = 0
@@ -702,7 +700,6 @@ def process_data_event(entry: Mapping[str, Any]) -> None:
                     edsm_fetch()
             update_display()
         case 'FSSAllBodiesFound':
-            this.fully_scanned = True
             update_display()
         case 'SAAScanComplete':
             body_short_name = get_body_name(entry['BodyName'])
@@ -857,7 +854,7 @@ def update_display() -> None:
             return '%s'
 
     if this.bodies or this.main_star_value > 0:
-        if this.fully_scanned and len(this.bodies) + 1 >= this.system.body_count:
+        if system_status.fully_scanned and len(this.bodies) + 1 >= this.system.body_count:
             text = 'Pioneer:'
         else:
             text = 'Pioneer: Scanning'
