@@ -679,6 +679,7 @@ def journal_entry(cmdr: str, is_beta: bool, system: str, station: str,
 
 
 def process_data_event(entry: Mapping[str, Any]) -> None:
+    this.sql_session.commit()
     match entry['event']:
         case 'Scan':
             body_short_name = get_body_name(entry['BodyName'])
