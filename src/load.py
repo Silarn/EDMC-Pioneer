@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
-import re
 # Pioneer (System Value) plugin for EDMC
 # Source: https://github.com/Silarn/EDMC-Pioneer
 # Inspired by Economical Cartographics: https://github.com/n-st/EDMC-EconomicalCartographics
 # Licensed under the [GNU Public License (GPL)](http://www.gnu.org/licenses/gpl-2.0.html) version 2 or later.
 
+import re
 import requests
 import semantic_version
 import sys
@@ -27,7 +27,7 @@ from EDMCLogging import get_plugin_logger
 
 import ExploData
 from ExploData.explo_data import db
-from ExploData.explo_data.db import System, Planet, Commander, SystemStatus, Metadata
+from ExploData.explo_data.db import System, Commander, SystemStatus, Metadata
 from ExploData.explo_data.RegionMap import findRegion
 from ExploData.explo_data.body_data.struct import PlanetData, StarData, load_planets, load_stars, get_main_star, \
     NonBodyData, load_non_bodies
