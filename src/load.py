@@ -704,6 +704,8 @@ def process_data_event(entry: Mapping[str, Any]) -> None:
             update_display()
         case 'SAAScanComplete':
             body_short_name = get_body_name(entry['BodyName'])
+            if body_short_name.endswith('Ring') or body_short_name.find('Belt Cluster') != -1:
+                return
             if body_short_name in this.bodies:
                 planet = this.bodies[body_short_name]
             else:
