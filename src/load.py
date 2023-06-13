@@ -118,7 +118,7 @@ def plugin_start3(plugin_dir: str) -> str:
             this.db_mismatch = True
 
         if not this.db_mismatch:
-            register_event_callbacks({'Scan', 'FSSBodySignals', 'SAASignalsFound', 'FSSDiscoveryScan', 'FSSAllBodiesFound', 'SAAScanComplete'}, process_data_event)
+            register_event_callbacks({'Scan', 'FSSDiscoveryScan', 'FSSAllBodiesFound', 'SAAScanComplete'}, process_data_event)
     return this.NAME
 
 
@@ -719,14 +719,6 @@ def process_data_event(entry: Mapping[str, Any]) -> None:
                 body_value = BodyValueData(body_short_name, entry['BodyID'])
             this.bodies[body_short_name] = planet
             this.body_values[body_short_name] = body_value
-            update_display()
-        case 'FSSBodySignals' | 'SAASignalsFound':
-            body_short_name = get_body_name(entry['BodyName'])
-            if body_short_name in this.bodies:
-                this.bodies[body_short_name].refresh()
-            else:
-                this.bodies[body_short_name] = PlanetData.from_journal(this.system, body_short_name,
-                                                                       entry['BodyID'], this.sql_session)
             update_display()
     calc_counts()
 
