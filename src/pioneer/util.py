@@ -1,7 +1,7 @@
 from ExploData.explo_data.body_data.struct import PlanetData
 
 
-def get_body_shorthand(body: PlanetData) -> str:
+def get_body_shorthand(body: PlanetData, commander_id) -> str:
     match body.get_type():
         case 'Icy body':
             tag = "I"
@@ -47,8 +47,8 @@ def get_body_shorthand(body: PlanetData) -> str:
     return " [{}]{}{}{}".format(
         tag,
         " <TC>" if body.is_terraformable() else "",
-        " -S-" if body.was_discovered() else "",
-        " -M-" if body.was_mapped() else ""
+        " -S-" if body.was_discovered(commander_id) else "",
+        " -M-" if body.was_mapped(commander_id) else ""
     )
 
 
@@ -258,3 +258,45 @@ def parse_edsm_star_class(subtype: str) -> str:
             star_class = 'SupermassiveBlackHole'
 
     return star_class
+
+
+def map_edsm_atmosphere(atmosphere: str) -> str:
+    if atmosphere.endswith('Ammonia'):
+        return 'Ammonia'
+    if atmosphere.endswith('Water'):
+        return 'Water'
+    if atmosphere.endswith('Carbon dioxide'):
+        return 'CarbonDioxide'
+    if atmosphere.endswith('Sulphur dioxide'):
+        return 'SulphurDioxide'
+    if atmosphere.endswith('Nitrogen'):
+        return 'Nitrogen'
+    if atmosphere.endswith('Water-rich'):
+        return 'WaterRich'
+    if atmosphere.endswith('Methane-rich'):
+        return 'MethaneRich'
+    if atmosphere.endswith('Ammonia-rich'):
+        return 'AmmoniaRich'
+    if atmosphere.endswith('Carbon dioxide-rich'):
+        return 'CarbonDioxideRich'
+    if atmosphere.endswith('Methane'):
+        return 'Methane'
+    if atmosphere.endswith('Helium'):
+        return 'Helium'
+    if atmosphere.endswith('Silicate vapour'):
+        return 'SilicateVapour'
+    if atmosphere.endswith('Metallic vapour'):
+        return 'MetallicVapour'
+    if atmosphere.endswith('Neon-rich'):
+        return 'NeonRich'
+    if atmosphere.endswith('Argon-rich'):
+        return 'ArgonRich'
+    if atmosphere.endswith('Neon'):
+        return 'Neon'
+    if atmosphere.endswith('Argon'):
+        return 'Argon'
+    if atmosphere.endswith('Oxygen'):
+        return 'Oxygen'
+    if atmosphere == 'No atmosphere':
+        return 'None'
+    return atmosphere
