@@ -35,7 +35,7 @@ from ExploData.explo_data.journal_parse import register_event_callbacks, parse_j
 
 import pioneer.const
 from pioneer.data import BodyValueData
-from pioneer.util import get_star_label, map_edsm_class, parse_edsm_star_class, get_body_shorthand, map_edsm_atmosphere
+from pioneer.util import get_star_label, get_body_shorthand
 from pioneer.body_calc import get_body_value, get_star_value, get_starclass_k, get_planetclass_k
 from pioneer.format_util import Formatter
 
@@ -89,12 +89,6 @@ class This:
         self.shorten_values = None
         self.show_details = None
         self.show_biological = None
-        self.edsm_setting = None
-
-        # EDSM
-        self.edsm_thread: Optional[threading.Thread] = None
-        self.edsm_session = None
-        self.edsm_bodies = None
 
 
 this = This()
@@ -163,7 +157,6 @@ def plugin_app(parent: tk.Frame) -> tk.Frame:
         this.update_button.grid(row=1, columnspan=2, sticky=tk.N)
     else:
         parse_config()
-        this.frame.bind('<<PioneerEDSMData>>', edsm_data)
         if not len(sorted(plug.PLUGINS, key=lambda item: item.name == 'BioScan')):  # type: list[plug.Plugin]
             register_journal_callbacks(this.frame, 'pioneer', journal_start, journal_update, journal_end)
         this.label = tk.Label(this.frame)
@@ -263,25 +256,8 @@ def plugin_prefs(parent: nb.Frame, cmdr: str, is_beta: bool) -> nb.Frame:
         text='Show unmapped bodies with biological signals',
         variable=this.show_biological
     ).grid(row=25, columnspan=3, padx=x_button_padding, sticky=tk.W)
+
     ttk.Separator(frame, orient=tk.HORIZONTAL).grid(row=30, columnspan=3, pady=y_padding*2, sticky=tk.EW)
-    nb.Label(frame, text='Fetch body data from EDSM:').grid(row=35, columnspan=3, padx=x_padding, sticky=tk.W)
-    edsm_options = [
-        "Never",
-        "Always",
-        "After Honk"
-    ]
-    nb.OptionMenu(
-        frame,
-        this.edsm_setting,
-        this.edsm_setting.get(),
-        *edsm_options
-    ).grid(row=40, columnspan=3, padx=x_padding, sticky=tk.W)
-    nb.Label(frame,
-             text='Never: Disabled\n' +
-                  'Always: Always fetch on system jump\n' +
-                  'After Honk: Fetch if system is already 100% scanned',
-             justify=tk.LEFT) \
-        .grid(row=45, columnspan=3, padx=x_padding, sticky=tk.W)
 
     nb.Button(frame, text='Start / Stop Journal Parsing', command=parse_journals) \
         .grid(row=60, column=0, padx=x_padding, sticky=tk.SW)
@@ -294,7 +270,6 @@ def prefs_changed(cmdr: str, is_beta: bool) -> None:
     this.formatter.set_shorten(this.shorten_values.get())
     config.set('pioneer_details', this.show_details.get())
     config.set('pioneer_biological', this.show_biological.get())
-    config.set('pioneer_edsm', this.edsm_setting.get())
     update_display()
 
 
@@ -304,17 +279,6 @@ def parse_config() -> None:
     this.formatter.set_shorten(this.shorten_values.get())
     this.show_details = tk.BooleanVar(value=config.get_bool(key='pioneer_details', default=True))
     this.show_biological = tk.BooleanVar(value=config.get_bool(key='pioneer_biological', default=True))
-    this.edsm_setting = tk.StringVar(value=config.get_str(key='pioneer_edsm', default='Never'))
-
-
-def plugin_stop() -> None:
-    """
-    EDMC plugin stop function. Closes open threads and database sessions for clean shutdown.
-    """
-
-    if this.edsm_thread and this.edsm_thread.is_alive():
-        this.edsm_thread.join()
-        this.journal_stop = True
 
 
 def journal_start(event: tk.Event) -> None:
@@ -479,142 +443,6 @@ def get_body_name(fullname: str = "") -> str:
     return body_name
 
 
-def edsm_fetch() -> None:
-    this.edsm_thread = threading.Thread(target=edsm_worker, name='EDSM worker', args=(this.system.name,))
-    this.edsm_thread.daemon = True
-    this.edsm_thread.start()
-
-
-def edsm_worker(system_name: str) -> None:
-    if not this.edsm_session:
-        this.edsm_session = requests.Session()
-
-    try:
-        r = this.edsm_session.get('https://www.edsm.net/api-system-v1/bodies?systemName=%s' % quote(system_name),
-                                  timeout=10)
-        r.raise_for_status()
-        this.edsm_bodies = r.json() or {}
-    except requests.RequestException:
-        this.edsm_bodies = None
-
-    this.frame.event_generate('<<PioneerEDSMData>>', when='tail')
-
-
-def edsm_data(event: tk.Event) -> None:
-    if this.edsm_bodies is None:
-        return
-
-    for body in this.edsm_bodies.get('bodies', []):
-        body_short_name = get_body_name(body['name'])
-        if body_short_name not in this.bodies:
-            if body['type'] == 'Star':
-                try:
-                    mass = body['solarMasses']
-                    if body['spectralClass']:
-                        star_class = body['spectralClass'][:-1]
-                        subclass = body['spectralClass'][-1]
-                    else:
-                        star_class = parse_edsm_star_class(body['subType'])
-                        subclass = 0
-                    k = get_starclass_k(star_class)
-                    value, honk_value = get_star_value(k, mass, False)
-                    if body['isMainStar'] and this.main_star_value == 0:
-                        this.main_star_value = value
-                        this.main_star_type = get_star_label(star_class, subclass, body['luminosity']) + " (EDSM)"
-                        this.main_star_name = "Main star" if body_short_name == this.system.name \
-                            else "{} (Main star)".format(body_short_name)
-                    elif not body['isMainStar']:
-                        new_body = BodyValueData(body_short_name, body['bodyId'])
-                        new_body.set_base_values(value, value)
-                        new_body.set_mapped_values(value, value)
-                        new_body.set_honk_values(honk_value, honk_value)
-                        this.body_values[body_short_name] = new_body
-
-                    star: StarData.from_journal(this.system, body_short_name, body['bodyId'], this.sql_session)
-                    if body_short_name not in this.bodies:
-                        star_data = StarData.from_journal(this.system, body_short_name, body['bodyId'], this.sql_session)
-                    else:
-                        star_data = this.bodies[body_short_name]
-                    star_data.set_type(star_class).set_luminosity(body['luminosity']) \
-                        .set_distance(float(body['distanceToArrival'])).set_mass(mass)
-                    if subclass != 0:
-                        star_data.set_subclass(subclass)
-                    this.bodies[body_short_name] = star_data
-
-                    this.system_was_scanned = True
-                    this.scans.add(body_short_name)
-
-                except Exception as e:
-                    logger.error(e)
-
-            elif body['type'] == 'Planet':
-                try:
-                    if body_short_name in this.bodies:
-                        planet = this.bodies[body_short_name]
-                    else:
-                        planet = PlanetData.from_journal(this.system, body_short_name, body['bodyId'], this.sql_session)
-                    odyssey_bonus = this.odyssey or this.game_version.major >= 4
-                    terraformable = 'Terraformable' if body['terraformingState'] == 'Candidate for terraforming' \
-                        else ''
-                    distance = float(body['distanceToArrival'])
-                    planet_class = map_edsm_class(body['subType'])
-                    mass = float(body['earthMasses'])
-                    was_discovered = planet.was_discovered(this.commander.id)
-                    was_mapped = planet.was_mapped(this.commander.id)
-                    this.system_was_scanned = True
-
-                    k, kt, tm = get_planetclass_k(planet_class, terraformable == 'Terraformable')
-                    value, mapped_value, honk_value, \
-                        min_value, min_mapped_value, min_honk_value = \
-                        get_body_value(k, kt, tm, mass, not was_discovered, not was_mapped, odyssey_bonus)
-
-                    this.planet_count += 1
-                    this.scans.add(body_short_name)
-                    planet.set_type(planet_class).set_distance(distance) \
-                        .set_atmosphere(map_edsm_atmosphere(body['atmosphereType'])) \
-                        .set_gravity(body['gravity'] * 9.80665).set_temp(body['surfaceTemperature']) \
-                        .set_mass(mass).set_terraform_state(terraformable)
-                    if body['volcanismType'] == 'No volcanism':
-                        volcanism = ''
-                    else:
-                        volcanism = body['volcanismType'].lower().capitalize() + ' volcanism'
-                    planet.set_volcanism(volcanism)
-
-                    star_search = re.search('^([A-Z]+) .+$', body_short_name)
-                    if star_search:
-                        for star in star_search.group(1):
-                            planet.add_parent_star(star)
-                    else:
-                        planet.add_parent_star(this.system.name)
-
-                    if 'materials' in body:
-                        for material in body['materials']:  # type: str
-                            planet.add_material(material.lower())
-
-                    atmosphere_composition: dict[str, float] = body.get('atmosphereComposition', {})
-                    if atmosphere_composition:
-                        for gas, percent in atmosphere_composition.items():
-                            planet.add_gas(map_edsm_atmosphere(gas), percent)
-
-                    planet_values = BodyValueData(body_short_name, body['bodyId'])
-                    planet_values.set_base_values(value, min_value)
-                    planet_values.set_honk_values(honk_value, min_honk_value)
-                    if planet_values.get_mapped_values()[1] == 0:
-                        planet_values.set_mapped_values(int(mapped_value), int(min_mapped_value))
-                    else:
-                        planet_values.set_mapped_values(int(mapped_value * efficiency_bonus),
-                                                        int(min_mapped_value * efficiency_bonus))
-
-                    this.bodies[body_short_name] = planet
-                    this.body_values[body_short_name] = planet_values
-
-                except Exception as e:
-                    logger.error(e)
-
-    calc_counts()
-    update_display()
-
-
 def reset() -> None:
     """
     Reset system data, typically when the location changes
@@ -683,8 +511,6 @@ def journal_entry(cmdr: str, is_beta: bool, system: str, station: str,
 
     if system_changed:
         this.scroll_canvas.yview_moveto(0.0)
-        if this.edsm_setting.get() == "Always":
-            edsm_fetch()
 
     calc_counts()
     update_display()
@@ -711,8 +537,6 @@ def process_data_event(entry: Mapping[str, Any]) -> None:
             if entry['Progress'] == 1.0 and not get_system_status().fully_scanned:
                 get_system_status().fully_scanned = True
                 this.sql_session.commit()
-                if this.edsm_setting.get() == "After Honk":
-                    edsm_fetch()
             update_display()
         case 'FSSAllBodiesFound':
             update_display()
