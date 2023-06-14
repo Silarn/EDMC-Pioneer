@@ -112,7 +112,10 @@ def plugin_start3(plugin_dir: str) -> str:
             this.db_mismatch = True
 
         if not this.db_mismatch:
-            register_event_callbacks({'Scan', 'FSSDiscoveryScan', 'FSSAllBodiesFound', 'SAAScanComplete'}, process_data_event)
+            register_event_callbacks(
+                {'Scan', 'FSSDiscoveryScan', 'FSSAllBodiesFound', 'SAAScanComplete'},
+                process_data_event
+            )
     return this.NAME
 
 
@@ -464,13 +467,15 @@ def reset() -> None:
 
 def journal_entry(cmdr: str, is_beta: bool, system: str, station: str,
                   entry: MutableMapping[str, Any], state: Mapping[str, Any]) -> str:
+    if entry['event'] == 'Harness-Version':
+        this.edmc_wait = True
+    if entry['event'] == 'ReplayOver':
+        this.edmc_wait = False
 
     if this.migration_failed:
         return ''
 
     system_changed = False
-    # this.game_version = semantic_version.Version.coerce(state.get('GameVersion', '0.0.0'))
-    # this.odyssey = state.get('Odyssey', False)
     if not state['StarPos']:
         return ''
 
@@ -509,11 +514,17 @@ def journal_entry(cmdr: str, is_beta: bool, system: str, station: str,
     this.game_version = semantic_version.Version.coerce(state.get('GameVersion', '0.0.0'))
     this.odyssey = state.get('Odyssey', False)
 
+    if not this.system or not this.commander:
+        return ''
+
+    this.sql_session.commit()
+
     if system_changed:
         this.scroll_canvas.yview_moveto(0.0)
 
-    calc_counts()
-    update_display()
+    if this.system:
+        calc_counts()
+        update_display()
 
     return ''  # No error
 
@@ -526,7 +537,7 @@ def process_data_event(entry: Mapping[str, Any]) -> None:
             body = None
             if 'StarType' in entry:
                 body = StarData.from_journal(this.system, body_short_name, entry['BodyID'], this.sql_session)
-            elif 'PlanetClass' in entry and entry['PlanetClass']:
+            elif 'PlanetClass' in entry:
                 body = PlanetData.from_journal(this.system, body_short_name, entry['BodyID'], this.sql_session)
             else:
                 non_body = NonBodyData.from_journal(this.system, body_short_name, entry['BodyID'], this.sql_session)
@@ -642,6 +653,7 @@ def get_system_status() -> Optional[SystemStatus]:
         else:
             this.system_status = SystemStatus(system_id=this.system.id, commander_id=this.commander.id)
             this.system.statuses.append(this.system_status)
+            this.sql_session.commit()
     return this.system_status
 
 
@@ -679,7 +691,7 @@ def update_display() -> None:
         body_distance = this.bodies[body_name].get_distance()
         if body_value >= this.min_value.get():
             return '%s%s (max %s, %s)' % \
-                   (body_name.upper(),
+                   (body_name,
                     get_body_shorthand(this.bodies[body_name], this.commander.id),
                     this.formatter.format_credits(body_value, False),
                     this.formatter.format_ls(body_distance))
