@@ -538,7 +538,8 @@ def process_data_event(entry: Mapping[str, Any]) -> None:
                 body = PlanetData.from_journal(this.system, body_short_name, entry['BodyID'], this.sql_session)
             else:
                 non_body = NonBodyData.from_journal(this.system, body_short_name, entry['BodyID'], this.sql_session)
-                this.non_bodies[body_short_name] = non_body
+                if body_short_name.find('Belt Cluster') != -1:
+                    this.non_bodies[body_short_name] = non_body
             process_body_values(body)
             update_display()
         case 'FSSDiscoveryScan':
