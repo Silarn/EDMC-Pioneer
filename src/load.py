@@ -4,7 +4,6 @@
 # Inspired by Economical Cartographics: https://github.com/n-st/EDMC-EconomicalCartographics
 # Licensed under the [GNU Public License (GPL)](http://www.gnu.org/licenses/gpl-2.0.html) version 2 or later.
 
-import re
 import requests
 import semantic_version
 import sys
