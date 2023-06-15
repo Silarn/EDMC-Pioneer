@@ -4,3 +4,8 @@
 *.pyo
 *.zip
 .idea
+venv
+
+# Release prep
+EDMC-Pioneer/
+/*.zip
