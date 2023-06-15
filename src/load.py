@@ -8,10 +8,8 @@ import re
 import requests
 import semantic_version
 import sys
-import threading
 from traceback import print_exc
 from typing import Any, MutableMapping, Mapping, Optional
-from urllib.parse import quote
 
 import tkinter as tk
 from tkinter import ttk, Widget as tkWidget
