@@ -65,15 +65,11 @@ Value calculations based on [information by MattG](https://forums.frontier.co.uk
 The overall goal is to make this a valuable tool for explorers in Elite Dangerous, highlighting valuable bodies in a
 reasonably compact format.
 
-Any reasonably useful info that I can display succinctly could be added. I'm considering a separate plugin to evaluate
-possible value ranges for exobiology signals - as well as a progress display on scanned samples with a final analysed
-value including the footfall bonus.
+Any reasonably useful info that I can display succinctly could be added. Suggestions are welcome.
 
 One possible project would be to calculate the habitable zone and attempt to estimate the terraform bonus based on that
 range. My assumption is that the bonus is highest at the center of this zone. This hasn't been confirmed, but I will use
 this to test better value estimates.
-
-Suggestions and requests are welcome.
 
 ## License
 
