@@ -32,7 +32,7 @@ Finally, the overall current (based on scan and map status) and maximum (if full
 displayed at the bottom of the pane.
 
 ### Persistent Data
-As of version 2.0, BioScan now maintains a database of all relevant system data and scan progress. It segments scan and
+As of version 2.0, Pioneer now maintains a database of all relevant system data and scan progress. It segments scan and
 map status by commander. You can safely stop and restart EDMC without losing your data.
 
 The database management is handled by the [ExploData] plugin/module. See that repository for more details.
