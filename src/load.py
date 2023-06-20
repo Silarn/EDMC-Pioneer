@@ -670,7 +670,14 @@ def update_display() -> None:
     system_status = get_system_status()
     if not system_status:
         this.label['text'] = 'Pioneer: Waiting for Data'
+        this.scroll_canvas.grid_remove()
+        this.scrollbar.grid_remove()
+        this.total_label.grid_remove()
         return
+    else:
+        this.scroll_canvas.grid()
+        this.scrollbar.grid()
+        this.total_label.grid()
 
     valuable_body_names = [
         body_name
