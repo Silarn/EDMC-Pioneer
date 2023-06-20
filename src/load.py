@@ -326,16 +326,11 @@ def calc_system_value() -> tuple[int, int, int, int]:
     if not this.main_star_value:
         this.values_label["text"] = "Main star not scanned.\nSystem already visited?"
         return 0, 0, 0, 0
-    max_value = 0
-    min_max_value = 0
-    value_sum = 0
-    min_value_sum = 0
-    honk_sum = 0
-    min_honk_sum = 0
-    value_sum += this.main_star_value
-    min_value_sum += this.main_star_value
-    max_value += this.main_star_value
-    min_max_value += this.main_star_value
+    max_value = this.main_star_value
+    min_max_value = this.main_star_value
+    value_sum = this.main_star_value
+    min_value_sum = this.main_star_value
+    honk_sum, min_honk_sum = 0, 0
     bodies_text = ""
     for body_name, body_data in sorted(this.bodies.items(), key=lambda item: item[1].get_id()):
         bodies_text += "{} - {}{}{}{}:".format(
