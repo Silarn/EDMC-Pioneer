@@ -359,7 +359,7 @@ def calc_system_value() -> tuple[int, int, int, int]:
             min_max_value += this.body_values[body_name].get_mapped_values()[1]
             value_sum += this.body_values[body_name].get_mapped_values()[0]
             min_value_sum += this.body_values[body_name].get_mapped_values()[1]
-        else:
+        elif type(body_data) is PlanetData:
             val_text = "{} - {}".format(
                 this.formatter.format_credits(this.body_values[body_name].get_base_values()[1]),
                 this.formatter.format_credits(this.body_values[body_name].get_base_values()[0])) \
@@ -375,6 +375,17 @@ def calc_system_value() -> tuple[int, int, int, int]:
             bodies_text += "Current Value: {}\nMax Value: {}".format(val_text, max_val_text) + "\n"
             max_value += int(this.body_values[body_name].get_mapped_values()[0] * efficiency_bonus)
             min_max_value += int(this.body_values[body_name].get_mapped_values()[1] * efficiency_bonus)
+            value_sum += this.body_values[body_name].get_base_values()[0]
+            min_value_sum += this.body_values[body_name].get_base_values()[1]
+        else:
+            val_text = "{} - {}".format(
+                this.formatter.format_credits(this.body_values[body_name].get_base_values()[1]),
+                this.formatter.format_credits(this.body_values[body_name].get_base_values()[0])) \
+                if this.body_values[body_name].get_base_values()[1] != this.body_values[body_name].get_base_values()[0] \
+                else "{}".format(this.formatter.format_credits(this.body_values[body_name].get_base_values()[0]))
+            bodies_text += "Current Value (Max): {}".format(val_text) + "\n"
+            max_value += this.body_values[body_name].get_base_values()[0]
+            min_max_value += this.body_values[body_name].get_base_values()[1]
             value_sum += this.body_values[body_name].get_base_values()[0]
             min_value_sum += this.body_values[body_name].get_base_values()[1]
         if get_system_status().honked:
@@ -745,11 +756,14 @@ def update_display() -> None:
             this.formatter.format_credits(min_total_value), this.formatter.format_credits(total_value))
         this.total_label['text'] += '\nMaximum System Value: {} to {}'.format(
             this.formatter.format_credits(min_max_value), this.formatter.format_credits(max_value))
-    else:
+    elif total_value != max_value:
         this.total_label['text'] = 'Estimated System Value: {}'.format(
             this.formatter.format_credits(total_value) if total_value > 0 else "N/A")
         this.total_label['text'] += '\nMaximum System Value: {}'.format(
-            this.formatter.format_credits(max_value) if total_value > 0 else "N/A")
+            this.formatter.format_credits(max_value) if max_value > 0 else "N/A")
+    else:
+        this.total_label['text'] = 'Estimated System Value (Max): {}'.format(
+            this.formatter.format_credits(total_value) if total_value > 0 else "N/A")
 
     if this.show_details.get():
         this.scroll_canvas.grid()
