@@ -75,8 +75,8 @@ class This:
         self.body_values: dict[str, BodyValueData] = {}
         self.scans = set()
         self.main_star_value: int = 0
-        self.main_star_name = ""
-        self.main_star_type = "Star"
+        self.main_star_name = ''
+        self.main_star_type = 'Star'
         self.map_count: int = 0
         self.planet_count: int = 0
         self.non_body_count: int = 0
@@ -162,20 +162,20 @@ def plugin_app(parent: tk.Frame) -> tk.Frame:
         this.label = tk.Label(this.frame)
         this.label.grid(row=0, column=0, columnspan=2, sticky=tk.N)
         this.scroll_canvas = tk.Canvas(this.frame, height=100, highlightthickness=0)
-        this.scrollbar = ttk.Scrollbar(this.frame, orient="vertical", command=this.scroll_canvas.yview)
+        this.scrollbar = ttk.Scrollbar(this.frame, orient='vertical', command=this.scroll_canvas.yview)
         this.scrollable_frame = ttk.Frame(this.scroll_canvas)
         this.scrollable_frame.bind(
-            "<Configure>",
+            '<Configure>',
             lambda e: this.scroll_canvas.configure(
-                scrollregion=this.scroll_canvas.bbox("all")
+                scrollregion=this.scroll_canvas.bbox('all')
             )
         )
-        this.scroll_canvas.bind("<Enter>", bind_mousewheel)
-        this.scroll_canvas.bind("<Leave>", unbind_mousewheel)
-        this.scroll_canvas.create_window((0, 0), window=this.scrollable_frame, anchor="nw")
+        this.scroll_canvas.bind('<Enter>', bind_mousewheel)
+        this.scroll_canvas.bind('<Leave>', unbind_mousewheel)
+        this.scroll_canvas.create_window((0, 0), window=this.scrollable_frame, anchor='nw')
         this.scroll_canvas.configure(yscrollcommand=this.scrollbar.set)
-        this.values_label = ttk.Label(this.scrollable_frame)
-        this.values_label.pack(fill="both", side="left")
+        this.values_label = ttk.Label(this.scrollable_frame, wraplength=360, justify=tk.LEFT)
+        this.values_label.pack(fill=tk.BOTH, side=tk.LEFT)
         this.scroll_canvas.grid(row=1, column=0, sticky=tk.EW)
         this.scroll_canvas.grid_rowconfigure(1, weight=0)
         this.scrollbar.grid(row=1, column=1, sticky=tk.NSEW)
@@ -194,7 +194,7 @@ def plugin_app(parent: tk.Frame) -> tk.Frame:
 
 
 def validate_int(val: str) -> bool:
-    if val.isdigit() or val == "":
+    if val.isdigit() or val == '':
         return True
     return False
 
@@ -324,110 +324,110 @@ def journal_end(event: tk.Event) -> None:
 
 def calc_system_value() -> tuple[int, int, int, int]:
     if not this.main_star_value:
-        this.values_label["text"] = "Main star not scanned.\nSystem already visited?"
+        this.values_label['text'] = 'Main star not scanned.\nSystem already visited?'
         return 0, 0, 0, 0
     max_value = this.main_star_value
     min_max_value = this.main_star_value
     value_sum = this.main_star_value
     min_value_sum = this.main_star_value
     honk_sum, min_honk_sum = 0, 0
-    bodies_text = ""
+    bodies_text = ''
     for body_name, body_data in sorted(this.bodies.items(), key=lambda item: item[1].get_id()):
-        bodies_text += "{} - {}{}{}{}:".format(
+        bodies_text += '{} - {}{}{}{}:'.format(
             body_name,
             body_data.get_type() if type(body_data) is PlanetData else
             get_star_label(body_data.get_type(),
                            body_data.get_subclass(),
                            body_data.get_luminosity()),
-            " <TC>" if type(body_data) is PlanetData and body_data.is_terraformable() else "",
-            " -S-" if body_data.was_discovered(this.commander.id) else "",
-            " -M-" if type(body_data) is PlanetData and body_data.was_mapped(this.commander.id) else "",
-        ) + "\n"
+            ' <TC>' if type(body_data) is PlanetData and body_data.is_terraformable() else '',
+            ' -S-' if body_data.was_discovered(this.commander.id) else '',
+            ' -M-' if type(body_data) is PlanetData and body_data.was_mapped(this.commander.id) else '',
+        ) + '\n'
         if type(body_data) is PlanetData and body_data.is_mapped(this.commander.id) is True:
-            val_text = "{} - {}".format(
+            val_text = '{} - {}'.format(
                 this.formatter.format_credits(this.body_values[body_name].get_mapped_values()[1]),
                 this.formatter.format_credits(this.body_values[body_name].get_mapped_values()[0])) \
                 if this.body_values[body_name].get_mapped_values()[1] != this.body_values[body_name].get_mapped_values()[0] \
-                else "{}".format(this.formatter.format_credits(this.body_values[body_name].get_mapped_values()[0]))
-            bodies_text += "Current Value (Max): {}".format(val_text) + "\n"
+                else '{}'.format(this.formatter.format_credits(this.body_values[body_name].get_mapped_values()[0]))
+            bodies_text += 'Current Value (Max): {}'.format(val_text) + '\n'
             max_value += this.body_values[body_name].get_mapped_values()[0]
             min_max_value += this.body_values[body_name].get_mapped_values()[1]
             value_sum += this.body_values[body_name].get_mapped_values()[0]
             min_value_sum += this.body_values[body_name].get_mapped_values()[1]
         elif type(body_data) is PlanetData:
-            val_text = "{} - {}".format(
+            val_text = '{} - {}'.format(
                 this.formatter.format_credits(this.body_values[body_name].get_base_values()[1]),
                 this.formatter.format_credits(this.body_values[body_name].get_base_values()[0])) \
                 if this.body_values[body_name].get_base_values()[1] != this.body_values[body_name].get_base_values()[0] \
-                else "{}".format(this.formatter.format_credits(this.body_values[body_name].get_base_values()[0]))
-            max_val_text = "{} - {}".format(
+                else '{}'.format(this.formatter.format_credits(this.body_values[body_name].get_base_values()[0]))
+            max_val_text = '{} - {}'.format(
                 this.formatter.format_credits(int(this.body_values[body_name].get_mapped_values()[1] * efficiency_bonus)),
                 this.formatter.format_credits(int(this.body_values[body_name].get_mapped_values()[0] * efficiency_bonus))
             ) if this.body_values[body_name].get_mapped_values()[1] != this.body_values[body_name].get_mapped_values()[0] \
-                else "{}".format(
+                else '{}'.format(
                 this.formatter.format_credits(int(this.body_values[body_name].get_mapped_values()[0] * efficiency_bonus))
             )
-            bodies_text += "Current Value: {}\nMax Value: {}".format(val_text, max_val_text) + "\n"
+            bodies_text += 'Current Value: {}\nMax Value: {}'.format(val_text, max_val_text) + '\n'
             max_value += int(this.body_values[body_name].get_mapped_values()[0] * efficiency_bonus)
             min_max_value += int(this.body_values[body_name].get_mapped_values()[1] * efficiency_bonus)
             value_sum += this.body_values[body_name].get_base_values()[0]
             min_value_sum += this.body_values[body_name].get_base_values()[1]
         else:
-            val_text = "{} - {}".format(
+            val_text = '{} - {}'.format(
                 this.formatter.format_credits(this.body_values[body_name].get_base_values()[1]),
                 this.formatter.format_credits(this.body_values[body_name].get_base_values()[0])) \
                 if this.body_values[body_name].get_base_values()[1] != this.body_values[body_name].get_base_values()[0] \
-                else "{}".format(this.formatter.format_credits(this.body_values[body_name].get_base_values()[0]))
-            bodies_text += "Current Value (Max): {}".format(val_text) + "\n"
+                else '{}'.format(this.formatter.format_credits(this.body_values[body_name].get_base_values()[0]))
+            bodies_text += 'Current Value (Max): {}'.format(val_text) + '\n'
             max_value += this.body_values[body_name].get_base_values()[0]
             min_max_value += this.body_values[body_name].get_base_values()[1]
             value_sum += this.body_values[body_name].get_base_values()[0]
             min_value_sum += this.body_values[body_name].get_base_values()[1]
         if get_system_status().honked:
             if this.body_values[body_name].get_honk_values()[0] != this.body_values[body_name].get_honk_values()[1]:
-                bodies_text += "Honk Value: {} - {}".format(
+                bodies_text += 'Honk Value: {} - {}'.format(
                     this.formatter.format_credits(this.body_values[body_name].get_honk_values()[1]),
-                    this.formatter.format_credits(this.body_values[body_name].get_honk_values()[0])) + "\n"
+                    this.formatter.format_credits(this.body_values[body_name].get_honk_values()[0])) + '\n'
             else:
-                bodies_text += "Honk Value: {}".format(
+                bodies_text += 'Honk Value: {}'.format(
                     this.formatter.format_credits(this.body_values[body_name].get_honk_values()[0])
-                ) + "\n"
+                ) + '\n'
             value_sum += this.body_values[body_name].get_honk_values()[0]
             min_value_sum += this.body_values[body_name].get_honk_values()[1]
             honk_sum += this.body_values[body_name].get_honk_values()[0]
             min_honk_sum += this.body_values[body_name].get_honk_values()[1]
         max_value += this.body_values[body_name].get_honk_values()[0]
         min_max_value += this.body_values[body_name].get_honk_values()[1]
-        bodies_text += "------------------" + "\n"
-    this.values_label["text"] = "{}:\n   {}\n   {} + {} = {}".format(
+        bodies_text += '------------------' + '\n'
+    this.values_label['text'] = '{}:\n   {}\n   {} + {} = {}'.format(
         this.main_star_name,
         this.main_star_type,
         this.formatter.format_credits(this.main_star_value),
-        this.formatter.format_credits(honk_sum) if honk_sum == min_honk_sum else "{} to {}".format(
+        this.formatter.format_credits(honk_sum) if honk_sum == min_honk_sum else '{} to {}'.format(
             this.formatter.format_credits(min_honk_sum),
             this.formatter.format_credits(honk_sum)
         ),
-        (this.formatter.format_credits(this.main_star_value + honk_sum)) if honk_sum == min_honk_sum else "{} to {}".format(
+        (this.formatter.format_credits(this.main_star_value + honk_sum)) if honk_sum == min_honk_sum else '{} to {}'.format(
             this.formatter.format_credits(this.main_star_value + min_honk_sum),
             this.formatter.format_credits(this.main_star_value + honk_sum)
-        )) + "\n"
-    this.values_label["text"] += "------------------" + "\n"
-    this.values_label["text"] += bodies_text
+        )) + '\n'
+    this.values_label['text'] += '------------------' + '\n'
+    this.values_label['text'] += bodies_text
     status = get_system_status()
     if not this.system_was_scanned:
         total_bodies = this.non_body_count + this.system.body_count
         if status.fully_scanned:
-            this.values_label["text"] += "Fully Scanned Bonus: {}".format(
+            this.values_label['text'] += 'Fully Scanned Bonus: {}'.format(
                 this.formatter.format_credits(total_bodies * 1000)
-            ) + "\n"
+            ) + '\n'
             value_sum += total_bodies * 1000
             min_value_sum += total_bodies * 1000
         max_value += total_bodies * 1000
         min_max_value += total_bodies * 1000
     if not this.system_was_mapped and this.planet_count > 0:
         if status.fully_scanned and this.planet_count == this.map_count:
-            this.values_label["text"] += "Fully Mapped Bonus: {}".format(
-                this.formatter.format_credits(this.planet_count * 10000)) + "\n"
+            this.values_label['text'] += 'Fully Mapped Bonus: {}'.format(
+                this.formatter.format_credits(this.planet_count * 10000)) + '\n'
             value_sum += this.planet_count * 10000
             min_value_sum += this.planet_count * 10000
         max_value += this.planet_count * 10000
@@ -441,7 +441,7 @@ def calc_system_value() -> tuple[int, int, int, int]:
     return value_sum, min_value_sum, max_value, min_max_value
 
 
-def get_body_name(fullname: str = "") -> str:
+def get_body_name(fullname: str = '') -> str:
     if fullname.startswith(this.system.name + ' '):
         body_name = fullname[len(this.system.name + ' '):]
     else:
@@ -455,8 +455,8 @@ def reset() -> None:
     """
 
     this.main_star_value = 0
-    this.main_star_type = "Star"
-    this.main_star_name = ""
+    this.main_star_type = 'Star'
+    this.main_star_name = ''
     this.bodies = {}
     this.body_values = {}
     this.non_bodies = {}
@@ -509,8 +509,8 @@ def journal_entry(cmdr: str, is_beta: bool, system: str, station: str,
             process_body_values(body)
         main_star = get_main_star(this.system, this.sql_session)
         if main_star:
-            this.main_star_name = "Main star" if this.system == main_star.name \
-                else "{} (Main star)".format(main_star.name)
+            this.main_star_name = 'Main star' if this.system == main_star.name \
+                else '{} (Main star)'.format(main_star.name)
             this.main_star_type = get_star_label(main_star.type, main_star.subclass, main_star.luminosity)
             this.bodies.pop(main_star.name, None)
 
@@ -603,8 +603,8 @@ def process_body_values(body: PlanetData | StarData | None) -> None:
         value, honk_value = get_star_value(k, body.get_mass(), not body.was_discovered(this.commander.id))
         if body.get_distance() == 0.0:
             this.main_star_value = value
-            this.main_star_name = "Main star" if this.system.name == body.get_name() \
-                else "{} (Main star)".format(body.get_name())
+            this.main_star_name = 'Main star' if this.system.name == body.get_name() \
+                else '{} (Main star)'.format(body.get_name())
             this.main_star_type = get_star_label(body.get_type(), body.get_subclass(), body.get_luminosity())
         else:
             body_value = BodyValueData(body.get_name(), body.get_id())
@@ -745,7 +745,7 @@ def update_display() -> None:
                     text += '\n'
 
         if text[-1] != '\n':
-            text += "\n"
+            text += '\n'
 
         text += 'B#: {} NB#: {}'.format(this.system.body_count, this.system.non_body_count)
         this.label['text'] = text
@@ -760,12 +760,12 @@ def update_display() -> None:
             this.formatter.format_credits(min_max_value), this.formatter.format_credits(max_value))
     elif total_value != max_value:
         this.total_label['text'] = 'Estimated System Value: {}'.format(
-            this.formatter.format_credits(total_value) if total_value > 0 else "N/A")
+            this.formatter.format_credits(total_value) if total_value > 0 else 'N/A')
         this.total_label['text'] += '\nMaximum System Value: {}'.format(
-            this.formatter.format_credits(max_value) if max_value > 0 else "N/A")
+            this.formatter.format_credits(max_value) if max_value > 0 else 'N/A')
     else:
         this.total_label['text'] = 'Estimated System Value (Max): {}'.format(
-            this.formatter.format_credits(total_value) if total_value > 0 else "N/A")
+            this.formatter.format_credits(total_value) if total_value > 0 else 'N/A')
 
     if this.show_details.get():
         this.scroll_canvas.grid()
@@ -776,7 +776,7 @@ def update_display() -> None:
 
 
 def bind_mousewheel(event: tk.Event) -> None:
-    if sys.platform in ("linux", "cygwin", "msys"):
+    if sys.platform in ('linux', 'cygwin', 'msys'):
         this.scroll_canvas.bind_all('<Button-4>', on_mousewheel)
         this.scroll_canvas.bind_all('<Button-5>', on_mousewheel)
     else:
@@ -784,7 +784,7 @@ def bind_mousewheel(event: tk.Event) -> None:
 
 
 def unbind_mousewheel(event: tk.Event) -> None:
-    if sys.platform in ("linux", "cygwin", "msys"):
+    if sys.platform in ('linux', 'cygwin', 'msys'):
         this.scroll_canvas.unbind_all('<Button-4>')
         this.scroll_canvas.unbind_all('<Button-5>')
     else:
@@ -799,6 +799,6 @@ def on_mousewheel(event: tk.Event) -> None:
     if event.num == 5 or event.delta == -120:
         scroll = 1
     if shift:
-        this.scroll_canvas.xview_scroll(scroll, "units")
+        this.scroll_canvas.xview_scroll(scroll, 'units')
     else:
-        this.scroll_canvas.yview_scroll(scroll, "units")
+        this.scroll_canvas.yview_scroll(scroll, 'units')
