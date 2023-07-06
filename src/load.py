@@ -82,10 +82,11 @@ class This:
         self.non_body_count: int = 0
 
         # Setting vars
-        self.min_value = None
-        self.shorten_values = None
-        self.show_details = None
-        self.show_biological = None
+        self.min_value: Optional[tk.IntVar] = None
+        self.shorten_values: Optional[tk.BooleanVar] = None
+        self.show_details: Optional[tk.BooleanVar] = None
+        self.show_biological: Optional[tk.BooleanVar] = None
+        self.show_descriptors: Optional[tk.BooleanVar] = None
 
 
 this = This()
@@ -256,8 +257,13 @@ def plugin_prefs(parent: nb.Frame, cmdr: str, is_beta: bool) -> nb.Frame:
         text='Show unmapped bodies with biological signals',
         variable=this.show_biological
     ).grid(row=25, columnspan=3, padx=x_button_padding, sticky=tk.W)
+    nb.Checkbutton(
+        frame,
+        text='Show additional star descriptors',
+        variable=this.show_descriptors
+    ).grid(row=30, columnspan=3, padx=x_button_padding, sticky=tk.W)
 
-    ttk.Separator(frame, orient=tk.HORIZONTAL).grid(row=30, columnspan=3, pady=y_padding*2, sticky=tk.EW)
+    ttk.Separator(frame, orient=tk.HORIZONTAL).grid(row=55, columnspan=3, pady=y_padding*2, sticky=tk.EW)
 
     nb.Button(frame, text='Start / Stop Journal Parsing', command=parse_journals) \
         .grid(row=60, column=0, padx=x_padding, sticky=tk.SW)
@@ -270,6 +276,7 @@ def prefs_changed(cmdr: str, is_beta: bool) -> None:
     this.formatter.set_shorten(this.shorten_values.get())
     config.set('pioneer_details', this.show_details.get())
     config.set('pioneer_biological', this.show_biological.get())
+    config.set('pioneer_star_descriptors', this.show_descriptors.get())
     update_display()
 
 
@@ -279,6 +286,7 @@ def parse_config() -> None:
     this.formatter.set_shorten(this.shorten_values.get())
     this.show_details = tk.BooleanVar(value=config.get_bool(key='pioneer_details', default=True))
     this.show_biological = tk.BooleanVar(value=config.get_bool(key='pioneer_biological', default=True))
+    this.show_descriptors = tk.BooleanVar(value=config.get_bool(key='pioneer_star_descriptors', default=False))
 
 
 def journal_start(event: tk.Event) -> None:
@@ -338,7 +346,8 @@ def calc_system_value() -> tuple[int, int, int, int]:
             body_data.get_type() if type(body_data) is PlanetData else
             get_star_label(body_data.get_type(),
                            body_data.get_subclass(),
-                           body_data.get_luminosity()),
+                           body_data.get_luminosity(),
+                           this.show_descriptors.get()),
             ' <TC>' if type(body_data) is PlanetData and body_data.is_terraformable() else '',
             ' -S-' if body_data.was_discovered(this.commander.id) else '',
             ' -M-' if type(body_data) is PlanetData and body_data.was_mapped(this.commander.id) else '',
@@ -511,7 +520,8 @@ def journal_entry(cmdr: str, is_beta: bool, system: str, station: str,
         if main_star:
             this.main_star_name = 'Main star' if this.system == main_star.name \
                 else '{} (Main star)'.format(main_star.name)
-            this.main_star_type = get_star_label(main_star.type, main_star.subclass, main_star.luminosity)
+            this.main_star_type = get_star_label(main_star.type, main_star.subclass,
+                                                 main_star.luminosity, this.show_descriptors.get())
             this.bodies.pop(main_star.name, None)
 
     this.game_version = semantic_version.Version.coerce(state.get('GameVersion', '0.0.0'))
@@ -605,10 +615,12 @@ def process_body_values(body: PlanetData | StarData | None) -> None:
             this.main_star_value = value
             this.main_star_name = 'Main star' if this.system.name == body.get_name() \
                 else '{} (Main star)'.format(body.get_name())
-            this.main_star_type = get_star_label(body.get_type(), body.get_subclass(), body.get_luminosity())
+            this.main_star_type = get_star_label(body.get_type(), body.get_subclass(),
+                                                 body.get_luminosity(), this.show_descriptors.get())
         else:
             body_value = BodyValueData(body.get_name(), body.get_id())
-            body_value.set_base_values(value, value).set_mapped_values(value, value).set_honk_values(honk_value, honk_value)
+            body_value.set_base_values(value, value).set_mapped_values(value, value) \
+                .set_honk_values(honk_value, honk_value)
             this.body_values[body.get_name()] = body_value
 
         if body.was_discovered(this.commander.id):

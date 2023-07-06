@@ -52,7 +52,7 @@ def get_body_shorthand(body: PlanetData, commander_id) -> str:
     )
 
 
-def get_star_label(star_class: str = '', subclass: int = 0, luminosity: str = '') -> str:
+def get_star_label(star_class: str = '', subclass: int = 0, luminosity: str = '', show_descriptors: bool = False) -> str:
     name = 'Star'
     star_type = ''
     if luminosity == 'Ia0':
@@ -99,22 +99,22 @@ def get_star_label(star_class: str = '', subclass: int = 0, luminosity: str = ''
     elif star_class == 'N':
         name = 'neutron star'
     elif star_class == 'O':
-        name = '{}blue {} star'
+        name = 'blue {} star'
     elif star_class in ['B', 'B_BlueWhiteSuperGiant']:
         star_class = 'B'
-        name = '{}blue-white {} star'
+        name = 'blue-white {} star'
     elif star_class in ['A', 'A_BlueWhiteSuperGiant']:
         star_class = 'A'
-        name = '{}white-blue {} star'
+        name = 'white-blue {} star'
     elif star_class in ['F', 'F_WhiteSuperGiant']:
         star_class = 'F'
-        name = '{}white {} star'
+        name = 'white {} star'
     elif star_class in ['G', 'G_WhiteSuperGiant']:
         star_class = 'G'
-        name = '{}white-yellow {} star'
+        name = 'white-yellow {} star'
     elif star_class in ['K', 'K_OrangeGiant']:
         star_class = 'K'
-        name = '{}yellow-orange {} star'
+        name = 'yellow-orange {} star'
     elif star_class.startswith('W'):
         name = '{}Wolf-Rayet {} star'
         descriptor = ''
@@ -126,7 +126,7 @@ def get_star_label(star_class: str = '', subclass: int = 0, luminosity: str = ''
             descriptor = 'carbon and nitrogen-rich '
         elif star_class[1:] == 'O':
             descriptor = 'carbon and oxygen-rich '
-        name = name.format(descriptor)
+        name = name.format(descriptor, star_type)
     elif star_class.startswith('C'):
         name = '{}{} carbon star'
         descriptor = ''
@@ -142,70 +142,72 @@ def get_star_label(star_class: str = '', subclass: int = 0, luminosity: str = ''
             descriptor = 'early-stage '
         elif star_class[1:] == 'R':
             descriptor = 'red '
-        name = name.format(descriptor).capitalize()
+        name = name.format(descriptor, star_type).capitalize()
     elif star_class in ['M', 'M_RedSuperGiant', 'M_RedGiant']:
         star_class = 'M'
         if star_type == 'main-sequence':
             star_type = 'dwarf'
         if star_type == 'compact':
             star_type = 'subdwarf'
-        name = '{}red {} star'
+        name = 'red {} star'
     elif star_class == 'AeBe':
         if star_type == 'main-sequence':
             star_type = 'dwarf'
         if star_type == 'compact':
             star_type = 'subdwarf'
-        name = '{}Herbig Ae/Be {} star'
+        name = 'Herbig Ae/Be {} star'
     elif star_class == 'TTS':
-        name = '{}T Tauri star'
+        name = 'T Tauri star'
     elif star_class == 'L':
         if star_type == 'main-sequence':
             star_type = 'dwarf'
         if star_type == 'compact':
             star_type = 'subdwarf'
-        name = '{}dark red {} star'
+        name = 'dark red {} star'
     elif star_class == 'T':
         if star_type == 'main-sequence':
             star_type = 'dwarf'
         if star_type == 'compact':
             star_type = 'subdwarf'
-        name = '{}methane {} star'
+        name = 'methane {} star'
     elif star_class == 'Y':
         if star_type == 'main-sequence':
             star_type = 'dwarf'
         if star_type == 'compact':
             star_type = 'subdwarf'
-        name = '{}brown {} star'
+        name = 'brown {} star'
     elif star_class == 'MS':
-        name = '{}cooling red {} star'
+        name = 'cooling red {} star'
     elif star_class == 'S':
-        name = '{}cool {} star'
+        name = 'cool {} star'
 
-    luminosity_descriptor = get_luminosity_descriptor(luminosity)
-    subclass_descriptor = get_subclass_descriptor(subclass)
-    if luminosity_descriptor and subclass_descriptor:
-        prefix = f'{luminosity_descriptor}, {subclass_descriptor}'
-    else:
-        prefix = f'{luminosity_descriptor}{subclass_descriptor}'
-    if prefix:
-        prefix += ' '
-    final_name = name.format(prefix, star_type)
-    final = '{} ({}{} {})'.format(final_name, star_class, subclass, luminosity)
-    return final[0].upper() + final[1:]
+    descriptors = ''
+    if show_descriptors:
+        luminosity_descriptor = get_luminosity_descriptor(luminosity)
+        subclass_descriptor = get_subclass_descriptor(subclass)
+        if luminosity_descriptor and subclass_descriptor:
+            descriptors = f'{luminosity_descriptor}, {subclass_descriptor}'
+        else:
+            descriptors = f'{luminosity_descriptor}{subclass_descriptor}'
+    final_name = name.format(star_type)
+    final_name = final_name[0].upper() + final_name[1:]
+    final = '{} ({}{} {}){}'.format(final_name, star_class, subclass, luminosity,
+                                    '\n   [{}]'.format(descriptors) if descriptors else '')
+    return final
 
 
 def get_luminosity_descriptor(luminosity: str) -> str:
     if luminosity.endswith('ab'):
-        return 'intermediate'
+        return 'more bright'
     elif luminosity.endswith('a'):
-        return 'larger'
+        return 'very bright'
     elif luminosity.endswith('b'):
-        return 'smaller'
+        return 'dim'
     elif luminosity.endswith('a0'):
-        return 'very large'
+        return 'incredibly bright'
     elif luminosity.endswith('z'):
-        return 'ionized-helium'
-    return 'typical'
+        return 'ionized-helium banding'
+    return ''
 
 
 def get_subclass_descriptor(subclass: int) -> str:
@@ -213,10 +215,10 @@ def get_subclass_descriptor(subclass: int) -> str:
         case 9:
             return 'low-temp'
         case 7 | 8:
-            return 'lower-temp'
+            return 'cooler-temp'
         case 4 | 5 | 6:
-            return 'medium-temp'
+            return 'average-temp'
         case 2 | 3:
-            return 'higher-temp'
+            return 'warmer-temp'
         case 0 | 1:
             return 'high-temp'
