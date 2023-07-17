@@ -93,11 +93,14 @@ def get_star_label(star_class: str = '', subclass: int = 0, luminosity: str = ''
                            ', '.join(descriptors) + ' ' if len(descriptors) else '').capitalize()
     elif star_class == 'H':
         name = 'black hole'
+        show_descriptors = False
     elif star_class == 'SupermassiveBlackHole':
         star_class = 'H'
         name = 'supermassive black hole'
+        show_descriptors = False
     elif star_class == 'N':
         name = 'neutron star'
+        show_descriptors = False
     elif star_class == 'O':
         name = 'blue {} star'
     elif star_class in ['B', 'B_BlueWhiteSuperGiant']:

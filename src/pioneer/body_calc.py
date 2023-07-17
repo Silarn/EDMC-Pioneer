@@ -65,11 +65,11 @@ def get_body_value(k, kt, tm, mass, first_discoverer, first_mapper, odyssey_bonu
     # we would map it, so we skip the "isMapped" check
     if first_discoverer and first_mapper:
         # note the additional multiplier later (hence the lower multiplier here)
-        mapping_multiplier = 3.699622554
+        mapping_multiplier = 3.699622554  # 3 1/3 * 1.11
     elif first_mapper:
-        mapping_multiplier = 8.0956
+        mapping_multiplier = 8.0956  # 3 1/3 * 2.4286800 repeating?
     else:
-        mapping_multiplier = 3.3333333333
+        mapping_multiplier = 10 / 3
 
     value = (k_final + k_final * q * (mass ** 0.2))
     min_value = (k_final_min + k_final_min * q * (mass ** 0.2))
