@@ -87,6 +87,7 @@ class This:
         self.show_details: Optional[tk.BooleanVar] = None
         self.show_biological: Optional[tk.BooleanVar] = None
         self.show_descriptors: Optional[tk.BooleanVar] = None
+        self.show_carrier_values: Optional[tk.BooleanVar] = None
 
 
 this = This()
@@ -262,6 +263,11 @@ def plugin_prefs(parent: nb.Frame, cmdr: str, is_beta: bool) -> nb.Frame:
         text='Show additional star descriptors',
         variable=this.show_descriptors
     ).grid(row=30, columnspan=3, padx=x_button_padding, sticky=tk.W)
+    nb.Checkbutton(
+        frame,
+        text='Show carrier values',
+        variable=this.show_carrier_values
+    ).grid(row=31, columnspan=3, padx=x_button_padding, sticky=tk.W)
 
     ttk.Separator(frame, orient=tk.HORIZONTAL).grid(row=55, columnspan=3, pady=y_padding*2, sticky=tk.EW)
 
@@ -277,6 +283,7 @@ def prefs_changed(cmdr: str, is_beta: bool) -> None:
     config.set('pioneer_details', this.show_details.get())
     config.set('pioneer_biological', this.show_biological.get())
     config.set('pioneer_star_descriptors', this.show_descriptors.get())
+    config.set('pioneer_carrier_values', this.show_carrier_values.get())
     update_display()
 
 
@@ -287,6 +294,7 @@ def parse_config() -> None:
     this.show_details = tk.BooleanVar(value=config.get_bool(key='pioneer_details', default=True))
     this.show_biological = tk.BooleanVar(value=config.get_bool(key='pioneer_biological', default=True))
     this.show_descriptors = tk.BooleanVar(value=config.get_bool(key='pioneer_star_descriptors', default=False))
+    this.show_carrier_values = tk.BooleanVar(value=config.get_bool(key='pioneer_carrier_values', default=False))
 
 
 def journal_start(event: tk.Event) -> None:
@@ -358,7 +366,12 @@ def calc_system_value() -> tuple[int, int, int, int]:
                 this.formatter.format_credits(this.body_values[body_name].get_mapped_values()[0])) \
                 if this.body_values[body_name].get_mapped_values()[1] != this.body_values[body_name].get_mapped_values()[0] \
                 else '{}'.format(this.formatter.format_credits(this.body_values[body_name].get_mapped_values()[0]))
-            bodies_text += 'Current Value (Max): {}'.format(val_text) + '\n'
+            bodies_text += 'Current Value (Max): {}\n'.format(val_text)
+            if this.show_carrier_values.get():
+                bodies_text += 'Carrier Value: {} ({} -> carrier)\n'.format(
+                    this.formatter.format_credits(int(this.body_values[body_name].get_mapped_values()[0] * .75)),
+                    this.formatter.format_credits(int(this.body_values[body_name].get_mapped_values()[0] * .125))
+                )
             max_value += this.body_values[body_name].get_mapped_values()[0]
             min_max_value += this.body_values[body_name].get_mapped_values()[1]
             value_sum += this.body_values[body_name].get_mapped_values()[0]
@@ -376,7 +389,13 @@ def calc_system_value() -> tuple[int, int, int, int]:
                 else '{}'.format(
                 this.formatter.format_credits(int(this.body_values[body_name].get_mapped_values()[0] * efficiency_bonus))
             )
-            bodies_text += 'Current Value: {}\nMax Value: {}'.format(val_text, max_val_text) + '\n'
+            bodies_text += 'Current Value: {}\n'.format(val_text)
+            if this.show_carrier_values.get():
+                bodies_text += 'Carrier Value: {} ({} -> carrier)\n'.format(
+                    this.formatter.format_credits(int(this.body_values[body_name].get_base_values()[0] * .75)),
+                    this.formatter.format_credits(int(this.body_values[body_name].get_base_values()[0] * .125))
+                )
+            bodies_text += 'Max Value: {}\n'.format(max_val_text)
             max_value += int(this.body_values[body_name].get_mapped_values()[0] * efficiency_bonus)
             min_max_value += int(this.body_values[body_name].get_mapped_values()[1] * efficiency_bonus)
             value_sum += this.body_values[body_name].get_base_values()[0]
@@ -387,7 +406,12 @@ def calc_system_value() -> tuple[int, int, int, int]:
                 this.formatter.format_credits(this.body_values[body_name].get_base_values()[0])) \
                 if this.body_values[body_name].get_base_values()[1] != this.body_values[body_name].get_base_values()[0] \
                 else '{}'.format(this.formatter.format_credits(this.body_values[body_name].get_base_values()[0]))
-            bodies_text += 'Current Value (Max): {}'.format(val_text) + '\n'
+            bodies_text += 'Current Value (Max): {}\n'.format(val_text)
+            if this.show_carrier_values.get():
+                bodies_text += 'Carrier Value: {} ({} -> carrier)\n'.format(
+                    this.formatter.format_credits(int(this.body_values[body_name].get_base_values()[0] * .75)),
+                    this.formatter.format_credits(int(this.body_values[body_name].get_base_values()[0] * .125))
+                )
             max_value += this.body_values[body_name].get_base_values()[0]
             min_max_value += this.body_values[body_name].get_base_values()[1]
             value_sum += this.body_values[body_name].get_base_values()[0]
@@ -408,7 +432,7 @@ def calc_system_value() -> tuple[int, int, int, int]:
         max_value += this.body_values[body_name].get_honk_values()[0]
         min_max_value += this.body_values[body_name].get_honk_values()[1]
         bodies_text += '------------------' + '\n'
-    this.values_label['text'] = '{}:\n   {}\n   {} + {} = {}'.format(
+    this.values_label['text'] = '{}:\n   {}\n   {} + {} = {}\n'.format(
         this.main_star_name,
         this.main_star_type,
         this.formatter.format_credits(this.main_star_value),
@@ -419,7 +443,12 @@ def calc_system_value() -> tuple[int, int, int, int]:
         (this.formatter.format_credits(this.main_star_value + honk_sum)) if honk_sum == min_honk_sum else '{} to {}'.format(
             this.formatter.format_credits(this.main_star_value + min_honk_sum),
             this.formatter.format_credits(this.main_star_value + honk_sum)
-        )) + '\n'
+        ))
+    if this.show_carrier_values.get():
+        this.values_label['text'] += '   Carrier: Up to {} ({} -> carrier)\n'.format(
+            this.formatter.format_credits(int((this.main_star_value + honk_sum) * .75)),
+            this.formatter.format_credits(int((this.main_star_value + honk_sum) * .125))
+        )
     this.values_label['text'] += '------------------' + '\n'
     this.values_label['text'] += bodies_text
     status = get_system_status()
@@ -768,16 +797,28 @@ def update_display() -> None:
     if total_value != min_total_value:
         this.total_label['text'] = 'Estimated System Value: {} to {}'.format(
             this.formatter.format_credits(min_total_value), this.formatter.format_credits(total_value))
+        if this.show_carrier_values.get():
+            this.total_label['text'] += '\nCarrier Value: up to {} (+{} -> carrier)'.format(
+                this.formatter.format_credits(int(total_value*.75)),
+                this.formatter.format_credits(int(total_value*.125)))
         this.total_label['text'] += '\nMaximum System Value: {} to {}'.format(
             this.formatter.format_credits(min_max_value), this.formatter.format_credits(max_value))
     elif total_value != max_value:
         this.total_label['text'] = 'Estimated System Value: {}'.format(
             this.formatter.format_credits(total_value) if total_value > 0 else 'N/A')
+        if this.show_carrier_values.get() and total_value > 0:
+            this.total_label['text'] += '\nCarrier Value: {} (+{} -> carrier)'.format(
+                this.formatter.format_credits(int(total_value*.75)),
+                this.formatter.format_credits(int(total_value*.125)))
         this.total_label['text'] += '\nMaximum System Value: {}'.format(
             this.formatter.format_credits(max_value) if max_value > 0 else 'N/A')
     else:
         this.total_label['text'] = 'Estimated System Value (Max): {}'.format(
             this.formatter.format_credits(total_value) if total_value > 0 else 'N/A')
+        if this.show_carrier_values.get() and total_value > 0:
+            this.total_label['text'] += '\nCarrier Value: {} (+{} -> carrier)'.format(
+                this.formatter.format_credits(int(total_value*.75)),
+                this.formatter.format_credits(int(total_value*.125)))
 
     if this.show_details.get():
         this.scroll_canvas.grid()
