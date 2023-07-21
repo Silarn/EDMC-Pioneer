@@ -65,7 +65,7 @@ def get_body_value(k, kt, tm, mass, first_discoverer, first_mapper, odyssey_bonu
     # we would map it, so we skip the "isMapped" check
     if first_discoverer and first_mapper:
         # note the additional multiplier later (hence the lower multiplier here)
-        mapping_multiplier = 3.699622554  # 3 1/3 * 1.11
+        mapping_multiplier = 10 / 3 * 1.11
     elif first_mapper:
         mapping_multiplier = 8.0956  # 3 1/3 * 2.4286800 repeating?
     else:
@@ -80,8 +80,8 @@ def get_body_value(k, kt, tm, mass, first_discoverer, first_mapper, odyssey_bonu
 
     # if this.odyssey or this.game_version.major >= 4:
     if odyssey_bonus:
-        mapped_value += (mapped_value * 0.3) if ((mapped_value * 0.3) > 555) else 555
-        min_mapped_value += (min_mapped_value * 0.3) if ((min_mapped_value * 0.3) > 555) else 555
+        mapped_value += (mapped_value * 0.3) if (mapped_value * 0.3) > 555 else 555
+        min_mapped_value += (min_mapped_value * 0.3) if (min_mapped_value * 0.3) > 555 else 555
 
     value = max(500, value)
     min_value = max(500, min_value)

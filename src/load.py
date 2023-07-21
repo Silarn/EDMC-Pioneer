@@ -360,22 +360,25 @@ def calc_system_value() -> tuple[int, int, int, int]:
             ' -S-' if body_data.was_discovered(this.commander.id) else '',
             ' -M-' if type(body_data) is PlanetData and body_data.was_mapped(this.commander.id) else '',
         ) + '\n'
-        if type(body_data) is PlanetData and body_data.is_mapped(this.commander.id) is True:
+        if type(body_data) is PlanetData and body_data.is_mapped(this.commander.id):
+            efficiency = efficiency_bonus if body_data.was_efficient(this.commander.id) else 1
             val_text = '{} - {}'.format(
-                this.formatter.format_credits(this.body_values[body_name].get_mapped_values()[1]),
-                this.formatter.format_credits(this.body_values[body_name].get_mapped_values()[0])) \
+                this.formatter.format_credits(this.body_values[body_name].get_mapped_values()[1] * efficiency),
+                this.formatter.format_credits(this.body_values[body_name].get_mapped_values()[0] * efficiency)) \
                 if this.body_values[body_name].get_mapped_values()[1] != this.body_values[body_name].get_mapped_values()[0] \
-                else '{}'.format(this.formatter.format_credits(this.body_values[body_name].get_mapped_values()[0]))
+                else '{}'.format(this.formatter.format_credits(this.body_values[body_name].get_mapped_values()[0] * efficiency))
             bodies_text += 'Current Value (Max): {}\n'.format(val_text)
+            if body_data.was_efficient(this.commander.id):
+                bodies_text += '  (Efficient)\n'
             if this.show_carrier_values.get():
                 bodies_text += 'Carrier Value: {} ({} -> carrier)\n'.format(
-                    this.formatter.format_credits(int(this.body_values[body_name].get_mapped_values()[0] * .75)),
-                    this.formatter.format_credits(int(this.body_values[body_name].get_mapped_values()[0] * .125))
+                    this.formatter.format_credits(int(this.body_values[body_name].get_mapped_values()[0] * efficiency * .75)),
+                    this.formatter.format_credits(int(this.body_values[body_name].get_mapped_values()[0] * efficiency * .125))
                 )
-            max_value += this.body_values[body_name].get_mapped_values()[0]
-            min_max_value += this.body_values[body_name].get_mapped_values()[1]
-            value_sum += this.body_values[body_name].get_mapped_values()[0]
-            min_value_sum += this.body_values[body_name].get_mapped_values()[1]
+            max_value += this.body_values[body_name].get_mapped_values()[0] * efficiency
+            min_max_value += this.body_values[body_name].get_mapped_values()[1] * efficiency
+            value_sum += this.body_values[body_name].get_mapped_values()[0] * efficiency
+            min_value_sum += this.body_values[body_name].get_mapped_values()[1] * efficiency
         elif type(body_data) is PlanetData:
             val_text = '{} - {}'.format(
                 this.formatter.format_credits(this.body_values[body_name].get_base_values()[1]),
@@ -516,6 +519,9 @@ def journal_entry(cmdr: str, is_beta: bool, system: str, station: str,
     if this.migration_failed:
         return ''
 
+    this.game_version = semantic_version.Version.coerce(state.get('GameVersion', '0.0.0'))
+    this.odyssey = state.get('Odyssey', False)
+
     system_changed = False
     if not state['StarPos']:
         return ''
@@ -552,9 +558,6 @@ def journal_entry(cmdr: str, is_beta: bool, system: str, station: str,
             this.main_star_type = get_star_label(main_star.type, main_star.subclass,
                                                  main_star.luminosity, this.show_descriptors.get())
             this.bodies.pop(main_star.name, None)
-
-    this.game_version = semantic_version.Version.coerce(state.get('GameVersion', '0.0.0'))
-    this.odyssey = state.get('Odyssey', False)
 
     if not this.system or not this.commander:
         return ''
@@ -599,21 +602,10 @@ def process_data_event(entry: Mapping[str, Any]) -> None:
             if body_short_name.endswith('Ring') or body_short_name.find('Belt Cluster') != -1:
                 return
             if body_short_name in this.bodies:
-                planet = this.bodies[body_short_name]
+                this.bodies[body_short_name].refresh()
             else:
-                planet = PlanetData.from_journal(this.system, body_short_name, entry['BodyID'], this.sql_session)
-            if body_short_name in this.body_values:
-                body_value = this.body_values[body_short_name]
-                map_val, map_val_max = body_value.get_mapped_values()
-                final_val = (
-                    int(map_val * efficiency_bonus) if planet.was_efficient(this.commander.id) else map_val,
-                    int(map_val_max * efficiency_bonus) if planet.was_efficient(this.commander.id) else map_val_max
-                )
-                body_value.set_mapped_values(final_val[0], final_val[1])
-            else:
-                body_value = BodyValueData(body_short_name, entry['BodyID'])
-            this.bodies[body_short_name] = planet
-            this.body_values[body_short_name] = body_value
+                this.bodies[body_short_name] = PlanetData.from_journal(this.system, body_short_name,
+                                                                       entry['BodyID'], this.sql_session)
             update_display()
     calc_counts()
 
@@ -673,11 +665,7 @@ def process_body_values(body: PlanetData | StarData | None) -> None:
                 body_value = this.body_values[body.get_name()]
 
             body_value.set_base_values(value, min_value).set_honk_values(honk_value, min_honk_value)
-            if body_value.get_mapped_values()[1] == 0:
-                body_value.set_mapped_values(int(mapped_value), int(min_mapped_value))
-            else:
-                body_value.set_mapped_values(int(mapped_value * efficiency_bonus),
-                                             int(min_mapped_value * efficiency_bonus))
+            body_value.set_mapped_values(int(mapped_value), int(min_mapped_value))
             this.body_values[body.get_name()] = body_value
 
     if body.get_distance() > 0.0:
