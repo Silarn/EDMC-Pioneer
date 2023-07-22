@@ -3,6 +3,8 @@
 # Source: https://github.com/Silarn/EDMC-Pioneer
 # Inspired by Economical Cartographics: https://github.com/n-st/EDMC-EconomicalCartographics
 # Licensed under the [GNU Public License (GPL)](http://www.gnu.org/licenses/gpl-2.0.html) version 2 or later.
+import os
+import re
 
 import requests
 import semantic_version
@@ -47,13 +49,14 @@ class This:
         self.VERSION = semantic_version.Version(pioneer.const.plugin_version)
         self.formatter = Formatter()
 
-        self.frame = None
-        self.scroll_canvas = None
-        self.scrollbar = None
-        self.scrollable_frame = None
-        self.label = None
-        self.values_label = None
-        self.total_label = None
+        self.frame: Optional[tk.Frame] = None
+        self.scroll_canvas: Optional[tk.Canvas] = None
+        self.scrollbar: Optional[ttk.Scrollbar] = None
+        self.scrollable_frame: Optional[ttk.Frame] = None
+        self.label: Optional[tk.Label] = None
+        self.copy_button: Optional[tk.Label] = None
+        self.values_label: Optional[tk.Label] = None
+        self.total_label: Optional[tk.Label] = None
         self.update_button: Optional[HyperlinkLabel] = None
         self.journal_label: Optional[tk.Label] = None
 
@@ -190,6 +193,9 @@ def plugin_app(parent: tk.Frame) -> tk.Frame:
             url = 'https://github.com/Silarn/EDMC-Pioneer/releases/tag/v{}'.format(update)
             this.update_button = HyperlinkLabel(this.frame, text=text, url=url)
             this.update_button.grid(row=3, columnspan=2, sticky=tk.N)
+        this.copy_button = tk.Label(this.frame, text='Export', fg='white', cursor='hand2')
+        this.copy_button.grid(row=4, columnspan=2, sticky=tk.EW)
+        this.copy_button.bind('<Button-1>', lambda e: export_text())
         update_display()
         theme.register(this.values_label)
     return this.frame
@@ -199,6 +205,20 @@ def validate_int(val: str) -> bool:
     if val.isdigit() or val == '':
         return True
     return False
+
+
+def export_text() -> None:
+    export_path = config.app_dir_path / 'pioneer_exports'
+    if not export_path.exists():
+        os.makedirs(export_path)
+    filename = re.sub(r'[^\w\s-]', '', this.system.name)
+    filename = re.sub(r'[-\s]+', '-', filename).strip('-_')
+    filename += '.txt'
+    logger.debug(f'Writing: {export_path / filename}')
+    file = open(export_path / filename, 'w')
+    file.write(this.values_label['text'] + '\n')
+    file.write(this.total_label['text'])
+    file.close()
 
 
 def plugin_prefs(parent: nb.Frame, cmdr: str, is_beta: bool) -> nb.Frame:
@@ -519,8 +539,13 @@ def journal_entry(cmdr: str, is_beta: bool, system: str, station: str,
     if this.migration_failed:
         return ''
 
-    this.game_version = semantic_version.Version.coerce(state.get('GameVersion', '0.0.0'))
-    this.odyssey = state.get('Odyssey', False)
+    game_version = semantic_version.Version.coerce(state.get('GameVersion', '0.0.0'))
+    odyssey = state.get('Odyssey', False)
+    if game_version != this.game_version or odyssey != this.odyssey:
+        this.game_version = game_version
+        this.odyssey = odyssey
+        for body in this.bodies.values():
+            process_body_values(body)
 
     system_changed = False
     if not state['StarPos']:
