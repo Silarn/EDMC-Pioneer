@@ -214,7 +214,6 @@ def export_text() -> None:
     filename = re.sub(r'[^\w\s-]', '', this.system.name)
     filename = re.sub(r'[-\s]+', '-', filename).strip('-_')
     filename += '.txt'
-    logger.debug(f'Writing: {export_path / filename}')
     file = open(export_path / filename, 'w')
     file.write(this.values_label['text'] + '\n')
     file.write(this.total_label['text'])
