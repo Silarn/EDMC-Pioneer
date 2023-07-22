@@ -368,6 +368,8 @@ def calc_system_value() -> tuple[int, int, int, int]:
     honk_sum, min_honk_sum = 0, 0
     bodies_text = ''
     for body_name, body_data in sorted(this.bodies.items(), key=lambda item: item[1].get_id()):
+        is_range = this.body_values[body_name].get_mapped_values()[1] != \
+                   this.body_values[body_name].get_mapped_values()[0]
         bodies_text += '{} - {}{}{}{}:'.format(
             body_name,
             body_data.get_type() if type(body_data) is PlanetData else
@@ -384,13 +386,16 @@ def calc_system_value() -> tuple[int, int, int, int]:
             val_text = '{} - {}'.format(
                 this.formatter.format_credits(this.body_values[body_name].get_mapped_values()[1] * efficiency),
                 this.formatter.format_credits(this.body_values[body_name].get_mapped_values()[0] * efficiency)) \
-                if this.body_values[body_name].get_mapped_values()[1] != this.body_values[body_name].get_mapped_values()[0] \
-                else '{}'.format(this.formatter.format_credits(this.body_values[body_name].get_mapped_values()[0] * efficiency))
+                if is_range else \
+                '{}'.format(this.formatter.format_credits(
+                    this.body_values[body_name].get_mapped_values()[0] * efficiency
+                ))
             bodies_text += 'Current Value (Max): {}\n'.format(val_text)
             if body_data.was_efficient(this.commander.id):
                 bodies_text += '  (Efficient)\n'
             if this.show_carrier_values.get():
-                bodies_text += 'Carrier Value: {} ({} -> carrier)\n'.format(
+                bodies_text += 'Carrier Value: {}{} ({} -> carrier)\n'.format(
+                    'Up to ' if is_range else '',
                     this.formatter.format_credits(int(this.body_values[body_name].get_mapped_values()[0] * efficiency * .75)),
                     this.formatter.format_credits(int(this.body_values[body_name].get_mapped_values()[0] * efficiency * .125))
                 )
@@ -402,18 +407,18 @@ def calc_system_value() -> tuple[int, int, int, int]:
             val_text = '{} - {}'.format(
                 this.formatter.format_credits(this.body_values[body_name].get_base_values()[1]),
                 this.formatter.format_credits(this.body_values[body_name].get_base_values()[0])) \
-                if this.body_values[body_name].get_base_values()[1] != this.body_values[body_name].get_base_values()[0] \
-                else '{}'.format(this.formatter.format_credits(this.body_values[body_name].get_base_values()[0]))
+                if is_range else \
+                '{}'.format(this.formatter.format_credits(this.body_values[body_name].get_base_values()[0]))
             max_val_text = '{} - {}'.format(
                 this.formatter.format_credits(int(this.body_values[body_name].get_mapped_values()[1] * efficiency_bonus)),
                 this.formatter.format_credits(int(this.body_values[body_name].get_mapped_values()[0] * efficiency_bonus))
-            ) if this.body_values[body_name].get_mapped_values()[1] != this.body_values[body_name].get_mapped_values()[0] \
-                else '{}'.format(
+            ) if is_range else '{}'.format(
                 this.formatter.format_credits(int(this.body_values[body_name].get_mapped_values()[0] * efficiency_bonus))
             )
             bodies_text += 'Current Value: {}\n'.format(val_text)
             if this.show_carrier_values.get():
-                bodies_text += 'Carrier Value: {} ({} -> carrier)\n'.format(
+                bodies_text += 'Carrier Value: {}{} ({} -> carrier)\n'.format(
+                    'Up to ' if is_range else '',
                     this.formatter.format_credits(int(this.body_values[body_name].get_base_values()[0] * .75)),
                     this.formatter.format_credits(int(this.body_values[body_name].get_base_values()[0] * .125))
                 )
@@ -426,11 +431,13 @@ def calc_system_value() -> tuple[int, int, int, int]:
             val_text = '{} - {}'.format(
                 this.formatter.format_credits(this.body_values[body_name].get_base_values()[1]),
                 this.formatter.format_credits(this.body_values[body_name].get_base_values()[0])) \
-                if this.body_values[body_name].get_base_values()[1] != this.body_values[body_name].get_base_values()[0] \
-                else '{}'.format(this.formatter.format_credits(this.body_values[body_name].get_base_values()[0]))
+                if is_range else '{}'.format(
+                    this.formatter.format_credits(this.body_values[body_name].get_base_values()[0])
+                )
             bodies_text += 'Current Value (Max): {}\n'.format(val_text)
             if this.show_carrier_values.get():
-                bodies_text += 'Carrier Value: {} ({} -> carrier)\n'.format(
+                bodies_text += 'Carrier Value: {}{} ({} -> carrier)\n'.format(
+                    'Up to ' if is_range else '',
                     this.formatter.format_credits(int(this.body_values[body_name].get_base_values()[0] * .75)),
                     this.formatter.format_credits(int(this.body_values[body_name].get_base_values()[0] * .125))
                 )
@@ -467,7 +474,9 @@ def calc_system_value() -> tuple[int, int, int, int]:
             this.formatter.format_credits(this.main_star_value + honk_sum)
         ))
     if this.show_carrier_values.get():
-        this.values_label['text'] += '   Carrier: Up to {} ({} -> carrier)\n'.format(
+        is_range = honk_sum != min_honk_sum
+        this.values_label['text'] += '   Carrier: {}{} ({} -> carrier)\n'.format(
+            'Up to ' if is_range else '',
             this.formatter.format_credits(int((this.main_star_value + honk_sum) * .75)),
             this.formatter.format_credits(int((this.main_star_value + honk_sum) * .125))
         )
@@ -810,7 +819,7 @@ def update_display() -> None:
         this.total_label['text'] = 'Estimated System Value: {} to {}'.format(
             this.formatter.format_credits(min_total_value), this.formatter.format_credits(total_value))
         if this.show_carrier_values.get():
-            this.total_label['text'] += '\nCarrier Value: up to {} (+{} -> carrier)'.format(
+            this.total_label['text'] += '\nCarrier Value: Up to {} (+{} -> carrier)'.format(
                 this.formatter.format_credits(int(total_value*.75)),
                 this.formatter.format_credits(int(total_value*.125)))
         this.total_label['text'] += '\nMaximum System Value: {} to {}'.format(
