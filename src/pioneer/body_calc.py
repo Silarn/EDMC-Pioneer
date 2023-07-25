@@ -1,4 +1,4 @@
-def get_starclass_k(star_class: str):
+def get_starclass_k(star_class: str) -> int:
     if star_class in ['N', 'H', 'SupermassiveBlackHole']:
         return 22628
     elif star_class.startswith('D'):
@@ -7,7 +7,7 @@ def get_starclass_k(star_class: str):
         return 1200
 
 
-def get_planetclass_k(planet_class: str, terraformable: bool):
+def get_planetclass_k(planet_class: str, terraformable: bool) -> tuple[int, int, float]:
     """
         Adapted from MattG's table at https://forums.frontier.co.uk/threads/exploration-value-formulae.232000/
         Thank you, MattG! :)
@@ -48,11 +48,11 @@ def get_star_value(k: int, mass: float, first_discoverer: bool) -> tuple[int, in
     if first_discoverer:
         value *= 2.6
         honk_value *= 2.6
-    return int(value), int(honk_value)
+    return round(value), round(honk_value)
 
 
-# def get_body_value(k: int, kt: int, tm: int, mass: float, first_discoverer: bool, first_mapper: bool):
-def get_body_value(k, kt, tm, mass, first_discoverer, first_mapper, odyssey_bonus=False):
+def get_body_value(k: int, kt: int, tm: int, mass: float, first_discoverer: bool, first_mapper: bool,
+                   odyssey_bonus: bool = False) -> tuple[int, int, int, int, int, int]:
     """
         Adapted from MattG's example code at https://forums.frontier.co.uk/threads/exploration-value-formulae.232000/
         Thank you, MattG! :)
@@ -61,13 +61,10 @@ def get_body_value(k, kt, tm, mass, first_discoverer, first_mapper, odyssey_bonu
     k_final = k + kt
     k_final_min = k + (kt * tm)
 
-    # deviation from original: we want to know what the body would yield *if*
-    # we would map it, so we skip the "isMapped" check
     if first_discoverer and first_mapper:
-        # note the additional multiplier later (hence the lower multiplier here)
-        mapping_multiplier = 10 / 3 * 1.11
+        mapping_multiplier = 3.699622554
     elif first_mapper:
-        mapping_multiplier = 8.0956  # 3 1/3 * 2.4286800 repeating?
+        mapping_multiplier = 8.0956
     else:
         mapping_multiplier = 10 / 3
 
@@ -83,12 +80,12 @@ def get_body_value(k, kt, tm, mass, first_discoverer, first_mapper, odyssey_bonu
         mapped_value += (mapped_value * 0.3) if (mapped_value * 0.3) > 555 else 555
         min_mapped_value += (min_mapped_value * 0.3) if (min_mapped_value * 0.3) > 555 else 555
 
-    value = max(500, value)
-    min_value = max(500, min_value)
-    mapped_value = max(500, mapped_value)
-    min_mapped_value = max(500, min_mapped_value)
-    honk_value = max(500, honk_value)
-    min_honk_value = max(500, min_honk_value)
+    value = value if value > 500 else 500
+    min_value = min_value if min_value > 500 else 500
+    mapped_value = mapped_value if mapped_value > 500 else 500
+    min_mapped_value = min_mapped_value if min_mapped_value > 500 else 500
+    honk_value = honk_value if honk_value > 500 else 500
+    min_honk_value = min_honk_value if min_honk_value > 500 else 500
     if first_discoverer:
         value *= 2.6
         min_value *= 2.6
@@ -97,4 +94,5 @@ def get_body_value(k, kt, tm, mass, first_discoverer, first_mapper, odyssey_bonu
         honk_value *= 2.6
         min_honk_value *= 2.6
 
-    return int(value), int(mapped_value), int(honk_value), int(min_value), int(min_mapped_value), int(min_honk_value)
+    return round(value), round(mapped_value), round(honk_value), \
+        round(min_value), round(min_mapped_value), round(min_honk_value)
