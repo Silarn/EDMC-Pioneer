@@ -732,8 +732,12 @@ def update_display() -> None:
         this.total_label.grid_remove()
         return
     else:
-        this.scroll_canvas.grid()
-        this.scrollbar.grid()
+        if this.show_details.get():
+            this.scroll_canvas.grid()
+            this.scrollbar.grid()
+        else:
+            this.scroll_canvas.grid_remove()
+            this.scrollbar.grid_remove()
         this.total_label.grid()
 
     valuable_body_names = [
