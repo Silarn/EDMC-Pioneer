@@ -10,10 +10,10 @@ import requests
 import semantic_version
 import sys
 from traceback import print_exc
-from typing import Any, MutableMapping, Mapping, Optional
+from typing import Any, MutableMapping, Mapping
 
 import tkinter as tk
-from tkinter import ttk, Widget as tkWidget
+from tkinter import ttk, colorchooser as tkColorChooser, Widget as tkWidget
 from ttkHyperlinkLabel import HyperlinkLabel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -33,6 +33,7 @@ from ExploData.explo_data.body_data.struct import PlanetData, StarData, load_pla
 from ExploData.explo_data.journal_parse import register_event_callbacks, parse_journals, register_journal_callbacks
 
 import pioneer.const
+import pioneer.overlay as overlay
 from pioneer.data import BodyValueData
 from pioneer.util import get_star_label, get_body_shorthand
 from pioneer.body_calc import get_body_value, get_star_value, get_starclass_k, get_planetclass_k
@@ -49,28 +50,29 @@ class This:
         self.VERSION = semantic_version.Version(pioneer.const.plugin_version)
         self.formatter = Formatter()
 
-        self.frame: Optional[tk.Frame] = None
-        self.scroll_canvas: Optional[tk.Canvas] = None
-        self.scrollbar: Optional[ttk.Scrollbar] = None
-        self.scrollable_frame: Optional[ttk.Frame] = None
-        self.label: Optional[tk.Label] = None
-        self.copy_button: Optional[tk.Label] = None
-        self.values_label: Optional[tk.Label] = None
-        self.total_label: Optional[tk.Label] = None
-        self.update_button: Optional[HyperlinkLabel] = None
-        self.journal_label: Optional[tk.Label] = None
+        self.parent: tk.Frame | None = None
+        self.frame: tk.Frame | None = None
+        self.scroll_canvas: tk.Canvas | None = None
+        self.scrollbar: ttk.Scrollbar | None = None
+        self.scrollable_frame: ttk.Frame | None = None
+        self.label: tk.Label | None = None
+        self.copy_button: tk.Label | None = None
+        self.values_label: tk.Label | None = None
+        self.total_label: tk.Label | None = None
+        self.update_button: HyperlinkLabel | None = None
+        self.journal_label: tk.Label | None = None
 
         # DB
-        self.sql_session: Optional[Session] = None
+        self.sql_session: Session | None = None
         self.migration_failed: bool = False
         self.db_mismatch: bool = False
 
         # Plugin state
         self.odyssey = False
         self.game_version = semantic_version.Version('0.0.0')
-        self.commander: Optional[Commander] = None
-        self.system: Optional[System] = None
-        self.system_status: Optional[SystemStatus] = None
+        self.commander: Commander | None = None
+        self.system: System | None = None
+        self.system_status: SystemStatus | None = None
         self.system_was_scanned = False
         self.system_was_mapped = False
         self.bodies: dict[str, PlanetData | StarData] = {}
@@ -85,12 +87,16 @@ class This:
         self.non_body_count: int = 0
 
         # Setting vars
-        self.min_value: Optional[tk.IntVar] = None
-        self.shorten_values: Optional[tk.BooleanVar] = None
-        self.show_details: Optional[tk.BooleanVar] = None
-        self.show_biological: Optional[tk.BooleanVar] = None
-        self.show_descriptors: Optional[tk.BooleanVar] = None
-        self.show_carrier_values: Optional[tk.BooleanVar] = None
+        self.min_value: tk.IntVar | None = None
+        self.shorten_values: tk.BooleanVar | None = None
+        self.show_details: tk.BooleanVar | None = None
+        self.show_biological: tk.BooleanVar | None = None
+        self.show_descriptors: tk.BooleanVar | None = None
+        self.show_carrier_values: tk.BooleanVar | None = None
+        self.use_overlay: tk.BooleanVar | None = None
+        self.overlay_color: tk.StringVar | None = None
+        self.overlay_anchor_x: tk.IntVar | None = None
+        self.overlay_anchor_y: tk.IntVar | None = None
 
 
 this = This()
@@ -121,6 +127,15 @@ def plugin_start3(plugin_dir: str) -> str:
     return this.NAME
 
 
+def plugin_stop() -> None:
+    """
+    EDMC plugin stop function. Closes open threads and database sessions for clean shutdown.
+    """
+
+    if overlay.overlay_enabled():
+        overlay.disconnect()
+
+
 def version_check() -> str:
     try:
         req = requests.get(url='https://api.github.com/repos/Silarn/EDMC-Pioneer/releases/latest')
@@ -146,6 +161,7 @@ def plugin_app(parent: tk.Frame) -> tk.Frame:
     :return: Plugin's main TKinter frame
     """
 
+    this.parent = parent
     this.frame = tk.Frame(parent)
     this.frame.grid_columnconfigure(0, weight=1)
     if this.migration_failed:
@@ -231,6 +247,18 @@ def plugin_prefs(parent: nb.Frame, cmdr: str, is_beta: bool) -> nb.Frame:
     :return: Plugin settings tab TKinter frame
     """
 
+    color_button = None
+
+    def color_chooser() -> None:
+        (_, color) = tkColorChooser.askcolor(
+            this.overlay_color.get(), title='Overlay Color', parent=this.parent
+        )
+
+        if color:
+            this.overlay_color.set(color)
+            if color_button is not None:
+                color_button['foreground'] = color
+
     x_padding = 10
     x_button_padding = 12
     y_padding = 2
@@ -288,6 +316,45 @@ def plugin_prefs(parent: nb.Frame, cmdr: str, is_beta: bool) -> nb.Frame:
         variable=this.show_carrier_values
     ).grid(row=31, columnspan=3, padx=x_button_padding, sticky=tk.W)
 
+    # Overlay settings
+    ttk.Separator(frame).grid(row=35, columnspan=3, pady=y_padding*2, sticky=tk.EW)
+
+    nb.Label(frame,
+             text='EDMC Overlay Integration',
+             justify=tk.LEFT) \
+        .grid(row=40, column=0, padx=x_padding, sticky=tk.NW)
+    nb.Checkbutton(
+        frame,
+        text='Enable overlay',
+        variable=this.use_overlay
+    ).grid(row=41, column=0, padx=x_button_padding, pady=0, sticky=tk.W)
+    color_button = nb.ColoredButton(
+        frame,
+        text='Text Color',
+        foreground=this.overlay_color.get(),
+        background='grey4',
+        command=lambda: color_chooser()
+    ).grid(row=42, column=0, padx=x_button_padding, pady=y_padding, sticky=tk.W)
+
+    anchor_frame = nb.Frame(frame)
+    anchor_frame.grid(row=41, column=1, sticky=tk.NSEW)
+    anchor_frame.columnconfigure(4, weight=1)
+
+    nb.Label(anchor_frame, text='Display Anchor:') \
+        .grid(row=0, column=0, sticky=tk.W)
+    nb.Label(anchor_frame, text='X') \
+        .grid(row=0, column=1, sticky=tk.W)
+    nb.Entry(
+        anchor_frame, text=this.overlay_anchor_x.get(), textvariable=this.overlay_anchor_x,
+        width=8, validate='all', validatecommand=(vcmd, '%P')
+    ).grid(row=0, column=2, sticky=tk.W)
+    nb.Label(anchor_frame, text='Y') \
+        .grid(row=0, column=3, sticky=tk.W)
+    nb.Entry(
+        anchor_frame, text=this.overlay_anchor_y.get(), textvariable=this.overlay_anchor_y,
+        width=8, validate='all', validatecommand=(vcmd, '%P')
+    ).grid(row=0, column=4, sticky=tk.W)
+
     ttk.Separator(frame, orient=tk.HORIZONTAL).grid(row=55, columnspan=3, pady=y_padding*2, sticky=tk.EW)
 
     nb.Button(frame, text='Start / Stop Journal Parsing', command=parse_journals) \
@@ -303,6 +370,10 @@ def prefs_changed(cmdr: str, is_beta: bool) -> None:
     config.set('pioneer_biological', this.show_biological.get())
     config.set('pioneer_star_descriptors', this.show_descriptors.get())
     config.set('pioneer_carrier_values', this.show_carrier_values.get())
+    config.set('pioneer_overlay', this.use_overlay.get())
+    config.set('pioneer_overlay_color', this.overlay_color.get())
+    config.set('pioneer_overlay_anchor_x', this.overlay_anchor_x.get())
+    config.set('pioneer_overlay_anchor_y', this.overlay_anchor_y.get())
     update_display()
 
 
@@ -314,6 +385,10 @@ def parse_config() -> None:
     this.show_biological = tk.BooleanVar(value=config.get_bool(key='pioneer_biological', default=True))
     this.show_descriptors = tk.BooleanVar(value=config.get_bool(key='pioneer_star_descriptors', default=False))
     this.show_carrier_values = tk.BooleanVar(value=config.get_bool(key='pioneer_carrier_values', default=False))
+    this.use_overlay = tk.BooleanVar(value=config.get_bool(key='pioneer_overlay', default=False))
+    this.overlay_color = tk.StringVar(value=config.get_str(key='pioneer_overlay_color', default='#ffffff'))
+    this.overlay_anchor_x = tk.IntVar(value=config.get_int(key='pioneer_overlay_anchor_x', default=1000))
+    this.overlay_anchor_y = tk.IntVar(value=config.get_int(key='pioneer_overlay_anchor_y', default=225))
 
 
 def journal_start(event: tk.Event) -> None:
@@ -705,7 +780,7 @@ def process_body_values(body: PlanetData | StarData | None) -> None:
         this.bodies[body.get_name()] = body
 
 
-def get_system_status() -> Optional[SystemStatus]:
+def get_system_status() -> SystemStatus | None:
     if not this.system:
         this.system_status = None
     elif this.system_status and this.system_status.system_id != this.system.id:
@@ -844,6 +919,17 @@ def update_display() -> None:
             this.total_label['text'] += '\nCarrier Value: {} (+{} -> carrier)'.format(
                 this.formatter.format_credits(int(total_value*.75)),
                 this.formatter.format_credits(int(total_value*.125)))
+
+    if this.use_overlay.get() and overlay.overlay_enabled():
+        if this.label['text']:
+            overlay_text = this.label['text'] + "\n \n" + this.total_label['text']
+            overlay.display("pioneer_text", overlay_text,
+                            x=this.overlay_anchor_x.get(), y=this.overlay_anchor_y.get(),
+                            color=this.overlay_color.get())
+        else:
+            overlay.display("pioneer_text", "Pioneer: Waiting for Data",
+                            x=this.overlay_anchor_x.get(), y=this.overlay_anchor_y.get(),
+                            color=this.overlay_color.get())
 
     if this.show_details.get():
         this.scroll_canvas.grid()
