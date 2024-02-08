@@ -37,8 +37,15 @@ map status by commander. You can safely stop and restart EDMC without losing you
 
 The database management is handled by the [ExploData] plugin/module. See that repository for more details.
 
+### Overlay
+As of version 2.1.0, Pioneer now supports an in-game overlay by means of EDMCOverlay. You must enable this in the settings
+and install the prerequisite plugin to make use of this feature.
+
+The text color and anchor point for the display are configurable.
+
 ## Requirements
 * EDMC version 5 and above
+* (Optional) [EDMCOverlay] (Windows) or [edmcoverlay2] (Linux)
 
 ## Installation
 * Download the [latest release] of both Pioneer and ExploData
@@ -52,6 +59,7 @@ The database management is handled by the [ExploData] plugin/module. See that re
 * For native python users:
   * Run `pip install -r requirements.txt` within the ExploData plugin directory to install SQLAlchemy
   * Ensure the correct `pip` is used for Python 3.11
+* (Optional) Install [EDMCOverlay] or [edmcoverlay2] for overlay support depending on your OS
 * Start or restart EDMC to register the plugin and run any necessary database migrations
 
 ## Acknowledgements
@@ -73,7 +81,7 @@ this to test better value estimates.
 
 ## License
 
-[Pioneer plugin][Pioneer] Copyright © 2023 Jeremy Rimpo
+[Pioneer plugin][Pioneer] Copyright © 2024 Jeremy Rimpo
 
 Licensed under the [GNU Public License (GPL)][GPLv2] version 2 or later.
 
@@ -82,5 +90,7 @@ Licensed under the [GNU Public License (GPL)][GPLv2] version 2 or later.
 [ExploData]: https://github.com/Silarn/EDMC-ExploData
 [BioScan]: https://github.com/Silarn/EDMC-BioScan
 [EcCon]: https://github.com/n-st/EDMC-EconomicalCartographics
+[EDMCOverlay]: https://github.com/inorton/EDMCOverlay
+[edmcoverlay2]: https://github.com/sersorrel/edmcoverlay2
 [latest release]: https://github.com/Silarn/EDMC-Pioneer/releases/latest
 [GPLv2]: http://www.gnu.org/licenses/gpl-2.0.html
