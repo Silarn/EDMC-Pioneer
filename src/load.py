@@ -33,7 +33,7 @@ from ExploData.explo_data.body_data.struct import PlanetData, StarData, load_pla
 from ExploData.explo_data.journal_parse import register_event_callbacks, parse_journals, register_journal_callbacks
 
 import pioneer.const
-import pioneer.overlay as overlay
+from pioneer.overlay import Overlay
 from pioneer.data import BodyValueData
 from pioneer.util import get_star_label, get_body_shorthand
 from pioneer.body_calc import get_body_value, get_star_value, get_starclass_k, get_planetclass_k
@@ -49,6 +49,7 @@ class This:
         self.NAME = pioneer.const.plugin_name
         self.VERSION = semantic_version.Version(pioneer.const.plugin_version)
         self.formatter = Formatter()
+        self.overlay = Overlay()
 
         self.parent: tk.Frame | None = None
         self.frame: tk.Frame | None = None
@@ -132,8 +133,8 @@ def plugin_stop() -> None:
     EDMC plugin stop function. Closes open threads and database sessions for clean shutdown.
     """
 
-    if overlay.overlay_enabled():
-        overlay.disconnect()
+    if this.overlay.available():
+        this.overlay.disconnect()
 
 
 def version_check() -> str:
@@ -920,14 +921,14 @@ def update_display() -> None:
                 this.formatter.format_credits(int(total_value*.75)),
                 this.formatter.format_credits(int(total_value*.125)))
 
-    if this.use_overlay.get() and overlay.overlay_enabled():
+    if this.use_overlay.get() and this.overlay.available():
         if this.label['text']:
             overlay_text = this.label['text'] + "\n \n" + this.total_label['text']
-            overlay.display("pioneer_text", overlay_text,
+            this.overlay.display("pioneer_text", overlay_text,
                             x=this.overlay_anchor_x.get(), y=this.overlay_anchor_y.get(),
                             color=this.overlay_color.get())
         else:
-            overlay.display("pioneer_text", "Pioneer: Waiting for Data",
+            this.overlay.display("pioneer_text", "Pioneer: Waiting for Data",
                             x=this.overlay_anchor_x.get(), y=this.overlay_anchor_y.get(),
                             color=this.overlay_color.get())
 

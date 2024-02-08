@@ -51,7 +51,7 @@ def get_star_value(k: int, mass: float, first_discoverer: bool) -> tuple[int, in
     return round(value), round(honk_value)
 
 
-def get_body_value(k: int, kt: int, tm: int, mass: float, first_discoverer: bool, first_mapper: bool,
+def get_body_value(k: int, kt: int, tm: float, mass: float, first_discoverer: bool, first_mapper: bool,
                    odyssey_bonus: bool = False) -> tuple[int, int, int, int, int, int]:
     """
         Adapted from MattG's example code at https://forums.frontier.co.uk/threads/exploration-value-formulae.232000/
