@@ -14,11 +14,11 @@ def get_body_shorthand(body: PlanetData, commander_id) -> str:
         case 'High metal content body':
             tag = 'HMC'
         case 'Earthlike body':
-            tag = 'EL'
+            tag = 'ELW'
         case 'Water world':
-            tag = 'W'
+            tag = 'WW'
         case 'Ammonia world':
-            tag = 'A'
+            tag = 'AW'
         case 'Water giant':
             tag = 'G-W'
         case 'Water giant with life':
