@@ -411,6 +411,7 @@ def journal_update(event: tk.Event) -> None:
     """
 
     finished, total = ExploData.explo_data.journal_parse.get_progress()
+    progress = '0%'
     if total > 0:
         progress = f'{finished / total:.1%}'
     progress = progress.rstrip('0').rstrip('.')
