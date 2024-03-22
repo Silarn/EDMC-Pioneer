@@ -26,7 +26,7 @@ from EDMCLogging import get_plugin_logger
 
 import ExploData
 from ExploData.explo_data import db
-from ExploData.explo_data.db import System, Commander, SystemStatus, Metadata
+from ExploData.explo_data.db import System, Commander, SystemStatus, Metadata, StarRing
 from ExploData.explo_data.RegionMap import findRegion
 from ExploData.explo_data.body_data.struct import PlanetData, StarData, load_planets, load_stars, get_main_star, \
     NonBodyData, load_non_bodies
@@ -86,6 +86,8 @@ class This:
         self.map_count: int = 0
         self.planet_count: int = 0
         self.non_body_count: int = 0
+        self.belt_count: int = 0
+        self.belts_found: int = 0
 
         # Setting vars
         self.min_value: tk.IntVar | None = None
@@ -437,6 +439,7 @@ def journal_end(event: tk.Event) -> None:
 
 
 def calc_system_value() -> tuple[int, int, int, int]:
+    have_belts = this.belt_count == this.belts_found
     if not this.main_star_value:
         this.values_label['text'] = 'Main star not scanned.\nSystem already visited?'
         return 0, 0, 0, 0
@@ -564,7 +567,7 @@ def calc_system_value() -> tuple[int, int, int, int]:
     status = get_system_status()
     if not this.system_was_scanned:
         total_bodies = this.non_body_count + this.system.body_count
-        if status.fully_scanned:
+        if status.fully_scanned and have_belts:
             this.values_label['text'] += 'Fully Scanned Bonus: {}'.format(
                 this.formatter.format_credits(total_bodies * 1000)
             ) + '\n'
@@ -670,6 +673,7 @@ def journal_entry(cmdr: str, is_beta: bool, system: str, station: str,
             this.main_star_type = get_star_label(main_star.type, main_star.subclass,
                                                  main_star.luminosity, this.show_descriptors.get())
             this.bodies.pop(main_star.name, None)
+            process_belts()
 
     if not this.system or not this.commander:
         return ''
@@ -694,12 +698,14 @@ def process_data_event(entry: Mapping[str, Any]) -> None:
             body = None
             if 'StarType' in entry:
                 body = StarData.from_journal(this.system, body_short_name, entry['BodyID'], this.sql_session)
+                process_belts()
             elif 'PlanetClass' in entry:
                 body = PlanetData.from_journal(this.system, body_short_name, entry['BodyID'], this.sql_session)
             else:
                 non_body = NonBodyData.from_journal(this.system, body_short_name, entry['BodyID'], this.sql_session)
                 if body_short_name.find('Belt Cluster') != -1:
                     this.non_bodies[body_short_name] = non_body
+                    process_belts()
             process_body_values(body)
             update_display()
         case 'FSSDiscoveryScan':
@@ -708,10 +714,12 @@ def process_data_event(entry: Mapping[str, Any]) -> None:
                 this.sql_session.commit()
             update_display()
         case 'FSSAllBodiesFound':
+            process_belts()
             update_display()
         case 'SAAScanComplete':
             body_short_name = get_body_name(entry['BodyName'])
             if body_short_name.endswith('Ring') or body_short_name.find('Belt Cluster') != -1:
+                process_belts()
                 return
             if body_short_name in this.bodies:
                 this.bodies[body_short_name].refresh()
@@ -802,6 +810,32 @@ def get_system_status() -> SystemStatus | None:
     return this.system_status
 
 
+def process_belts() -> None:
+    belt_count = 0
+    belts_found = 0
+    for _, star in filter(lambda item: type(item[1]) is StarData, this.bodies.items()):
+        rings: list[StarRing] = star.get_rings()
+        for ring in rings:
+            if ring.name.endswith('Belt'):
+                belt_count += 1
+                for _, non_body in this.non_bodies.items():
+                    if non_body.get_name().startswith(f'{star.get_name()} {ring.name}'):
+                        belts_found += 1
+                        break
+    main_star = get_main_star(this.system, this.sql_session)
+    if main_star:
+        name_prefix = '' if main_star.name == this.system.name else main_star.name + ' '
+        for ring in main_star.rings:
+            if ring.name.endswith('Belt'):
+                belt_count += 1
+                for _, non_body in this.non_bodies.items():
+                    if non_body.get_name().startswith(f'{name_prefix}{ring.name}'):
+                        belts_found += 1
+                        break
+    this.belt_count = belt_count
+    this.belts_found = belts_found
+
+
 def update_display() -> None:
     system_status = get_system_status()
     if not system_status:
@@ -855,17 +889,19 @@ def update_display() -> None:
             return '%s'
 
     if this.bodies or this.main_star_value > 0:
-        if system_status.fully_scanned and len(this.bodies) + 1 >= this.system.body_count:
+        have_belts = this.belt_count == this.belts_found
+        if system_status.fully_scanned and have_belts and len(this.bodies) + 1 >= this.system.body_count:
             text = 'Pioneer:'
         else:
             text = 'Pioneer: Scanning'
         if system_status.honked:
             text += ' (H)'
         if system_status.fully_scanned:
-            if this.system_was_scanned:
-                text += ' (S)'
-            else:
-                text += ' (S+)'
+            if have_belts:
+                if this.system_was_scanned:
+                    text += ' (S)'
+                else:
+                    text += ' (S+)'
             if this.planet_count > 0 and this.planet_count == this.map_count:
                 if this.system_was_mapped:
                     text += ' (M)'
@@ -892,7 +928,9 @@ def update_display() -> None:
         if text[-1] != '\n':
             text += '\n'
 
-        text += 'B#: {} NB#: {}'.format(this.system.body_count, this.system.non_body_count)
+        text += f'B#: {len(this.bodies) + 1}/{this.system.body_count} NB#: {this.system.non_body_count}'
+        if this.belt_count:
+            text += f' (Belts: {this.belts_found}/{this.belt_count})'
         this.label['text'] = text
     else:
         this.label['text'] = 'Pioneer: Nothing Scanned'
