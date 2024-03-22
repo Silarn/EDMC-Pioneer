@@ -287,7 +287,7 @@ def plugin_prefs(parent: nb.Frame, cmdr: str, is_beta: bool) -> nb.Frame:
     nb.Label(title_frame, text='Data Version: %s' % ExploData.explo_data.const.database_version) \
         .grid(row=1, column=2, padx=x_padding, pady=y_padding * 2, sticky=tk.E)
 
-    ttk.Separator(frame).grid(row=5, columnspan=3, pady=y_padding*2, sticky=tk.EW)
+    ttk.Separator(frame).grid(row=5, columnspan=3, pady=y_padding * 2, sticky=tk.EW)
     nb.Label(frame, text='Valuable Body Minimum:').grid(row=10, column=0, padx=x_padding, sticky=tk.W)
     vcmd = (frame.register(validate_int))
     nb.Entry(frame, textvariable=this.min_value,
@@ -320,7 +320,7 @@ def plugin_prefs(parent: nb.Frame, cmdr: str, is_beta: bool) -> nb.Frame:
     ).grid(row=31, columnspan=3, padx=x_button_padding, sticky=tk.W)
 
     # Overlay settings
-    ttk.Separator(frame).grid(row=35, columnspan=3, pady=y_padding*2, sticky=tk.EW)
+    ttk.Separator(frame).grid(row=35, columnspan=3, pady=y_padding * 2, sticky=tk.EW)
 
     nb.Label(frame,
              text='EDMC Overlay Integration',
@@ -358,7 +358,7 @@ def plugin_prefs(parent: nb.Frame, cmdr: str, is_beta: bool) -> nb.Frame:
         width=8, validate='all', validatecommand=(vcmd, '%P')
     ).grid(row=0, column=4, sticky=tk.W)
 
-    ttk.Separator(frame, orient=tk.HORIZONTAL).grid(row=55, columnspan=3, pady=y_padding*2, sticky=tk.EW)
+    ttk.Separator(frame, orient=tk.HORIZONTAL).grid(row=55, columnspan=3, pady=y_padding * 2, sticky=tk.EW)
 
     nb.Button(frame, text='Start / Stop Journal Parsing', command=parse_journals) \
         .grid(row=60, column=0, padx=x_padding, sticky=tk.SW)
@@ -478,8 +478,10 @@ def calc_system_value() -> tuple[int, int, int, int]:
             if this.show_carrier_values.get():
                 bodies_text += 'Carrier Value: {}{} ({} -> carrier)\n'.format(
                     'Up to ' if is_range else '',
-                    this.formatter.format_credits(int(this.body_values[body_name].get_mapped_values()[0] * efficiency * .75)),
-                    this.formatter.format_credits(int(this.body_values[body_name].get_mapped_values()[0] * efficiency * .125))
+                    this.formatter.format_credits(
+                        int(this.body_values[body_name].get_mapped_values()[0] * efficiency * .75)),
+                    this.formatter.format_credits(
+                        int(this.body_values[body_name].get_mapped_values()[0] * efficiency * .125))
                 )
             max_value += this.body_values[body_name].get_mapped_values()[0] * efficiency
             min_max_value += this.body_values[body_name].get_mapped_values()[1] * efficiency
@@ -492,10 +494,13 @@ def calc_system_value() -> tuple[int, int, int, int]:
                 if is_range else \
                 '{}'.format(this.formatter.format_credits(this.body_values[body_name].get_base_values()[0]))
             max_val_text = '{} - {}'.format(
-                this.formatter.format_credits(int(this.body_values[body_name].get_mapped_values()[1] * efficiency_bonus)),
-                this.formatter.format_credits(int(this.body_values[body_name].get_mapped_values()[0] * efficiency_bonus))
+                this.formatter.format_credits(
+                    int(this.body_values[body_name].get_mapped_values()[1] * efficiency_bonus)),
+                this.formatter.format_credits(
+                    int(this.body_values[body_name].get_mapped_values()[0] * efficiency_bonus))
             ) if is_range else '{}'.format(
-                this.formatter.format_credits(int(this.body_values[body_name].get_mapped_values()[0] * efficiency_bonus))
+                this.formatter.format_credits(
+                    int(this.body_values[body_name].get_mapped_values()[0] * efficiency_bonus))
             )
             bodies_text += 'Current Value: {}\n'.format(val_text)
             if this.show_carrier_values.get():
@@ -514,8 +519,8 @@ def calc_system_value() -> tuple[int, int, int, int]:
                 this.formatter.format_credits(this.body_values[body_name].get_base_values()[1]),
                 this.formatter.format_credits(this.body_values[body_name].get_base_values()[0])) \
                 if is_range else '{}'.format(
-                    this.formatter.format_credits(this.body_values[body_name].get_base_values()[0])
-                )
+                this.formatter.format_credits(this.body_values[body_name].get_base_values()[0])
+            )
             bodies_text += 'Current Value (Max): {}\n'.format(val_text)
             if this.show_carrier_values.get():
                 bodies_text += 'Carrier Value: {}{} ({} -> carrier)\n'.format(
@@ -551,7 +556,8 @@ def calc_system_value() -> tuple[int, int, int, int]:
             this.formatter.format_credits(min_honk_sum),
             this.formatter.format_credits(honk_sum)
         ),
-        (this.formatter.format_credits(this.main_star_value + honk_sum)) if honk_sum == min_honk_sum else '{} to {}'.format(
+        (this.formatter.format_credits(
+            this.main_star_value + honk_sum)) if honk_sum == min_honk_sum else '{} to {}'.format(
             this.formatter.format_credits(this.main_star_value + min_honk_sum),
             this.formatter.format_credits(this.main_star_value + honk_sum)
         ))
@@ -881,10 +887,10 @@ def update_display() -> None:
         body_distance = this.bodies[body_name].get_distance()
         if body_value >= this.min_value.get():
             return '%s%s (max %s, %s)' % \
-                   (body_name,
-                    get_body_shorthand(this.bodies[body_name], this.commander.id),
-                    this.formatter.format_credits(body_value, False),
-                    this.formatter.format_ls(body_distance))
+                (body_name,
+                 get_body_shorthand(this.bodies[body_name], this.commander.id),
+                 this.formatter.format_credits(body_value, False),
+                 this.formatter.format_ls(body_distance))
         else:
             return '%s'
 
@@ -941,8 +947,8 @@ def update_display() -> None:
             this.formatter.format_credits(min_total_value), this.formatter.format_credits(total_value))
         if this.show_carrier_values.get():
             this.total_label['text'] += '\nCarrier Value: Up to {} (+{} -> carrier)'.format(
-                this.formatter.format_credits(int(total_value*.75)),
-                this.formatter.format_credits(int(total_value*.125)))
+                this.formatter.format_credits(int(total_value * .75)),
+                this.formatter.format_credits(int(total_value * .125)))
         this.total_label['text'] += '\nMaximum System Value: {} to {}'.format(
             this.formatter.format_credits(min_max_value), this.formatter.format_credits(max_value))
     elif total_value != max_value:
@@ -950,8 +956,8 @@ def update_display() -> None:
             this.formatter.format_credits(total_value) if total_value > 0 else 'N/A')
         if this.show_carrier_values.get() and total_value > 0:
             this.total_label['text'] += '\nCarrier Value: {} (+{} -> carrier)'.format(
-                this.formatter.format_credits(int(total_value*.75)),
-                this.formatter.format_credits(int(total_value*.125)))
+                this.formatter.format_credits(int(total_value * .75)),
+                this.formatter.format_credits(int(total_value * .125)))
         this.total_label['text'] += '\nMaximum System Value: {}'.format(
             this.formatter.format_credits(max_value) if max_value > 0 else 'N/A')
     else:
@@ -959,19 +965,19 @@ def update_display() -> None:
             this.formatter.format_credits(total_value) if total_value > 0 else 'N/A')
         if this.show_carrier_values.get() and total_value > 0:
             this.total_label['text'] += '\nCarrier Value: {} (+{} -> carrier)'.format(
-                this.formatter.format_credits(int(total_value*.75)),
-                this.formatter.format_credits(int(total_value*.125)))
+                this.formatter.format_credits(int(total_value * .75)),
+                this.formatter.format_credits(int(total_value * .125)))
 
     if this.use_overlay.get() and this.overlay.available():
         if this.label['text']:
             overlay_text = this.label['text'] + "\n \n" + this.total_label['text']
             this.overlay.display("pioneer_text", overlay_text,
-                            x=this.overlay_anchor_x.get(), y=this.overlay_anchor_y.get(),
-                            color=this.overlay_color.get())
+                                 x=this.overlay_anchor_x.get(), y=this.overlay_anchor_y.get(),
+                                 color=this.overlay_color.get())
         else:
             this.overlay.display("pioneer_text", "Pioneer: Waiting for Data",
-                            x=this.overlay_anchor_x.get(), y=this.overlay_anchor_y.get(),
-                            color=this.overlay_color.get())
+                                 x=this.overlay_anchor_x.get(), y=this.overlay_anchor_y.get(),
+                                 color=this.overlay_color.get())
 
     if this.show_details.get():
         this.scroll_canvas.grid()
