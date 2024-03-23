@@ -706,15 +706,14 @@ def process_data_event(entry: Mapping[str, Any]) -> None:
             body = None
             if 'StarType' in entry:
                 body = StarData.from_journal(this.system, body_short_name, entry['BodyID'], this.sql_session)
-                process_belts()
             elif 'PlanetClass' in entry:
                 body = PlanetData.from_journal(this.system, body_short_name, entry['BodyID'], this.sql_session)
             else:
                 non_body = NonBodyData.from_journal(this.system, body_short_name, entry['BodyID'], this.sql_session)
                 if body_short_name.find('Belt Cluster') != -1:
                     this.non_bodies[body_short_name] = non_body
-                    process_belts()
             process_body_values(body)
+            process_belts()
             update_display()
         case 'FSSDiscoveryScan':
             if entry['Progress'] == 1.0 and not get_system_status().fully_scanned:
