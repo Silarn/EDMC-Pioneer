@@ -38,6 +38,7 @@ from pioneer.data import BodyValueData
 from pioneer.util import get_star_label, get_body_shorthand
 from pioneer.body_calc import get_body_value, get_star_value, get_starclass_k, get_planetclass_k
 from pioneer.format_util import Formatter
+from pioneer.status_flags import StatusFlags
 
 efficiency_bonus = 1.25
 
@@ -76,6 +77,7 @@ class This:
         self.system_status: SystemStatus | None = None
         self.system_was_scanned = False
         self.system_was_mapped = False
+        self.analysis_mode = True
         self.bodies: dict[str, PlanetData | StarData] = {}
         self.non_bodies: dict[str, NonBodyData] = {}
         self.body_values: dict[str, BodyValueData] = {}
@@ -736,6 +738,16 @@ def process_data_event(entry: Mapping[str, Any]) -> None:
     calc_counts()
 
 
+def dashboard_entry(cmdr: str, is_beta: bool, entry: dict[str, any]) -> str:
+    status = StatusFlags(entry['Flags'])
+
+    if this.analysis_mode != (StatusFlags.IS_ANALYSIS_MODE in status):
+        this.analysis_mode = (StatusFlags.IS_ANALYSIS_MODE in status)
+        update_display()
+
+    return ''
+
+
 def calc_counts() -> None:
     this.planet_count = 0
     this.map_count = 0
@@ -969,15 +981,18 @@ def update_display() -> None:
                 this.formatter.format_credits(int(total_value * .125)))
 
     if this.use_overlay.get() and this.overlay.available():
-        if this.label['text']:
-            overlay_text = this.label['text'] + "\n \n" + this.total_label['text']
-            this.overlay.display("pioneer_text", overlay_text,
-                                 x=this.overlay_anchor_x.get(), y=this.overlay_anchor_y.get(),
-                                 color=this.overlay_color.get())
+        if this.analysis_mode:
+            if this.label['text']:
+                overlay_text = this.label['text'] + "\n \n" + this.total_label['text']
+                this.overlay.display("pioneer_text", overlay_text,
+                                     x=this.overlay_anchor_x.get(), y=this.overlay_anchor_y.get(),
+                                     color=this.overlay_color.get())
+            else:
+                this.overlay.display("pioneer_text", "Pioneer: Waiting for Data",
+                                     x=this.overlay_anchor_x.get(), y=this.overlay_anchor_y.get(),
+                                     color=this.overlay_color.get())
         else:
-            this.overlay.display("pioneer_text", "Pioneer: Waiting for Data",
-                                 x=this.overlay_anchor_x.get(), y=this.overlay_anchor_y.get(),
-                                 color=this.overlay_color.get())
+            this.overlay.clear("pioneer_text")
 
     if this.show_details.get():
         this.scroll_canvas.grid()
