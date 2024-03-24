@@ -70,14 +70,15 @@ class This:
         self.db_mismatch: bool = False
 
         # Plugin state
-        self.odyssey = False
+        self.odyssey: bool = False
         self.game_version = semantic_version.Version('0.0.0')
         self.commander: Commander | None = None
         self.system: System | None = None
         self.system_status: SystemStatus | None = None
-        self.system_was_scanned = False
-        self.system_was_mapped = False
-        self.analysis_mode = True
+        self.system_was_scanned: bool = False
+        self.system_was_mapped: bool = False
+        self.analysis_mode: bool = True
+        self.in_flight: bool = False
         self.bodies: dict[str, PlanetData | StarData] = {}
         self.non_bodies: dict[str, NonBodyData] = {}
         self.body_values: dict[str, BodyValueData] = {}
@@ -739,9 +740,24 @@ def process_data_event(entry: Mapping[str, Any]) -> None:
 
 def dashboard_entry(cmdr: str, is_beta: bool, entry: dict[str, any]) -> str:
     status = StatusFlags(entry['Flags'])
+    update = False
 
     if this.analysis_mode != (StatusFlags.IS_ANALYSIS_MODE in status):
         this.analysis_mode = (StatusFlags.IS_ANALYSIS_MODE in status)
+        update = True
+
+    in_flight = False
+    if StatusFlags.IN_SHIP in status:
+        if (StatusFlags.DOCKED in status) or (StatusFlags.LANDED in status):
+            in_flight = False
+        else:
+            in_flight = True
+
+    if in_flight != this.in_flight:
+        this.in_flight = in_flight
+        update = True
+
+    if update:
         update_display()
 
     return ''
@@ -980,7 +996,7 @@ def update_display() -> None:
                 this.formatter.format_credits(int(total_value * .125)))
 
     if this.use_overlay.get() and this.overlay.available():
-        if this.analysis_mode:
+        if this.analysis_mode and this.in_flight:
             if this.label['text']:
                 overlay_text = this.label['text'] + "\n \n" + this.total_label['text']
                 this.overlay.display("pioneer_text", overlay_text,
