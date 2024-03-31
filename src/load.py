@@ -650,7 +650,7 @@ def journal_entry(cmdr: str, is_beta: bool, system: str, station: str,
     if not state['StarPos']:
         return ''
 
-    if cmdr and not this.commander:
+    if cmdr and (not this.commander or this.commander.name != cmdr):
         stmt = select(Commander).where(Commander.name == cmdr)
         result = this.sql_session.scalars(stmt)
         this.commander = result.first()
@@ -828,7 +828,8 @@ def process_body_values(body: PlanetData | StarData | None) -> None:
 def get_system_status() -> SystemStatus | None:
     if not this.system:
         this.system_status = None
-    elif this.system_status and this.system_status.system_id != this.system.id:
+    elif this.system_status and (this.system_status.system_id != this.system.id
+                                 or this.system_status.commander_id != this.commander.id):
         this.system_status = None
 
     if not this.system_status and this.system:
