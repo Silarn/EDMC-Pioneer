@@ -77,6 +77,7 @@ class This:
         self.system_status: SystemStatus | None = None
         self.system_was_scanned: bool = False
         self.system_was_mapped: bool = False
+        self.is_nav_beacon: bool = False
         self.analysis_mode: bool = True
         self.in_flight: bool = False
         self.bodies: dict[str, PlanetData | StarData] = {}
@@ -455,7 +456,7 @@ def calc_system_value() -> tuple[int, int, int, int]:
     for body_name, body_data in sorted(this.bodies.items(), key=lambda item: item[1].get_id()):
         is_range = this.body_values[body_name].get_mapped_values()[1] != \
                    this.body_values[body_name].get_mapped_values()[0]
-        bodies_text += '{} - {}{}{}{}:'.format(
+        bodies_text += '{} - {}{}{}{}{}{}:'.format(
             body_name,
             body_data.get_type() if type(body_data) is PlanetData else
             get_star_label(body_data.get_type(),
@@ -463,6 +464,9 @@ def calc_system_value() -> tuple[int, int, int, int]:
                            body_data.get_luminosity(),
                            this.show_descriptors.get()),
             ' <TC>' if type(body_data) is PlanetData and body_data.is_terraformable() else '',
+            ' (B)' if type(body_data) is PlanetData and not body_data.was_discovered(this.commander.id)
+                      and body_data.was_mapped(this.commander.id) else '',
+            ' (N)' if body_data.get_scan_state(this.commander.id) == 3 else '',
             ' -S-' if body_data.was_discovered(this.commander.id) else '',
             ' -M-' if type(body_data) is PlanetData and body_data.was_mapped(this.commander.id) else '',
         ) + '\n'
@@ -625,6 +629,7 @@ def reset() -> None:
     this.system_was_mapped = False
     this.planet_count = 0
     this.map_count = 0
+    this.is_nav_beacon = False
     this.scans = set()
 
 
@@ -802,6 +807,8 @@ def process_body_values(body: PlanetData | StarData | None) -> None:
 
     if type(body) is PlanetData:
         odyssey_bonus = this.odyssey or this.game_version.major >= 4
+        odyssey_bonus = False if not body.was_discovered(this.commander.id) and body.was_mapped(this.commander.id) \
+            else odyssey_bonus
         if body.get_name() not in this.body_values or this.body_values[body.get_name()].get_base_values()[0] == 0:
             this.system_was_scanned = True if body.was_discovered(this.commander.id) else this.system_was_scanned
             this.system_was_mapped = True if body.was_mapped(this.commander.id) else this.system_was_mapped
@@ -820,6 +827,9 @@ def process_body_values(body: PlanetData | StarData | None) -> None:
             body_value.set_base_values(value, min_value).set_honk_values(honk_value, min_honk_value)
             body_value.set_mapped_values(int(mapped_value), int(min_mapped_value))
             this.body_values[body.get_name()] = body_value
+
+    if body.get_scan_state(this.commander.id) == 3:
+        this.is_nav_beacon = True
 
     if body.get_distance() > 0.0:
         this.bodies[body.get_name()] = body
@@ -895,8 +905,8 @@ def update_display() -> None:
             key=lambda item: item[1].get_distance()
         )
         if type(body_data) is PlanetData
-        and this.body_values[body_name].get_mapped_values()[0] * efficiency_bonus >= this.min_value.get()
-        and not body_data.is_mapped(this.commander.id)
+           and this.body_values[body_name].get_mapped_values()[0] * efficiency_bonus >= this.min_value.get()
+           and not body_data.is_mapped(this.commander.id)
     ]
     exobio_body_names = [
         '%s (%d)' % (body_name, body_data.get_bio_signals())
@@ -934,6 +944,10 @@ def update_display() -> None:
             if have_belts:
                 if this.system_was_scanned:
                     text += ' (S)'
+                elif this.system_was_mapped and not this.system_was_scanned:
+                    text += ' (B)'
+                elif this.is_nav_beacon:
+                    text += ' (N)'
                 else:
                     text += ' (S+)'
             if this.planet_count > 0 and this.planet_count == this.map_count:

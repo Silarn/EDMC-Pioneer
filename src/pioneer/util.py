@@ -44,9 +44,10 @@ def get_body_shorthand(body: PlanetData, commander_id) -> str:
         case _:
             tag = ''
         
-    return ' [{}]{}{}{}'.format(
+    return ' [{}]{}{}{}{}'.format(
         tag,
         ' <TC>' if body.is_terraformable() else '',
+        ' (B)' if not body.was_discovered(commander_id) and body.was_mapped(commander_id) else '',
         ' -S-' if body.was_discovered(commander_id) else '',
         ' -M-' if body.was_mapped(commander_id) else ''
     )
