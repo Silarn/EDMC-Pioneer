@@ -100,6 +100,7 @@ class This:
         self.show_biological: tk.BooleanVar | None = None
         self.show_descriptors: tk.BooleanVar | None = None
         self.show_carrier_values: tk.BooleanVar | None = None
+        self.show_map_counter: tk.BooleanVar | None = None
         self.use_overlay: tk.BooleanVar | None = None
         self.overlay_color: tk.StringVar | None = None
         self.overlay_anchor_x: tk.IntVar | None = None
@@ -322,6 +323,11 @@ def plugin_prefs(parent: nb.Frame, cmdr: str, is_beta: bool) -> nb.Frame:
         text='Show carrier values',
         variable=this.show_carrier_values
     ).grid(row=31, columnspan=3, padx=x_button_padding, sticky=tk.W)
+    nb.Checkbutton(
+        frame,
+        text='Show mapped body count',
+        variable=this.show_map_counter
+    ).grid(row=31, columnspan=3, padx=x_button_padding, sticky=tk.W)
 
     # Overlay settings
     ttk.Separator(frame).grid(row=35, columnspan=3, pady=y_padding * 2, sticky=tk.EW)
@@ -377,6 +383,7 @@ def prefs_changed(cmdr: str, is_beta: bool) -> None:
     config.set('pioneer_biological', this.show_biological.get())
     config.set('pioneer_star_descriptors', this.show_descriptors.get())
     config.set('pioneer_carrier_values', this.show_carrier_values.get())
+    config.set('pioneer_map_counter', this.show_map_counter.get())
     config.set('pioneer_overlay', this.use_overlay.get())
     config.set('pioneer_overlay_color', this.overlay_color.get())
     config.set('pioneer_overlay_anchor_x', this.overlay_anchor_x.get())
@@ -392,6 +399,7 @@ def parse_config() -> None:
     this.show_biological = tk.BooleanVar(value=config.get_bool(key='pioneer_biological', default=True))
     this.show_descriptors = tk.BooleanVar(value=config.get_bool(key='pioneer_star_descriptors', default=False))
     this.show_carrier_values = tk.BooleanVar(value=config.get_bool(key='pioneer_carrier_values', default=False))
+    this.show_map_counter = tk.BooleanVar(value=config.get_bool(key='pioneer_map_counter', default=False))
     this.use_overlay = tk.BooleanVar(value=config.get_bool(key='pioneer_overlay', default=False))
     this.overlay_color = tk.StringVar(value=config.get_str(key='pioneer_overlay_color', default='#ffffff'))
     this.overlay_anchor_x = tk.IntVar(value=config.get_int(key='pioneer_overlay_anchor_x', default=1000))
@@ -933,15 +941,15 @@ def update_display() -> None:
             return '%s'
 
     if this.bodies or this.main_star_value > 0:
-        have_belts = this.belt_count == this.belts_found
-        if system_status.fully_scanned and have_belts and len(this.bodies) + 1 >= this.system.body_count:
+        all_belts_found = this.belt_count == this.belts_found
+        if system_status.fully_scanned and all_belts_found and len(this.bodies) + 1 >= this.system.body_count:
             text = 'Pioneer:'
         else:
             text = 'Pioneer: Scanning'
         if system_status.honked:
             text += ' (H)'
         if system_status.fully_scanned:
-            if have_belts:
+            if all_belts_found:
                 if this.system_was_scanned:
                     text += ' (S)'
                 elif this.system_was_mapped and not this.system_was_scanned:
@@ -976,9 +984,12 @@ def update_display() -> None:
         if text[-1] != '\n':
             text += '\n'
 
-        text += f'B#: {len(this.bodies) + 1}/{this.system.body_count} NB#: {this.system.non_body_count}'
+        body_count = this.system.body_count if system_status.honked else len(this.bodies) + 1
+        text += f'B#: {len(this.bodies) + 1}/{body_count} NB#: {this.system.non_body_count}'
         if this.belt_count:
             text += f' (Belts: {this.belts_found}/{this.belt_count})'
+        if this.show_map_counter.get() and this.planet_count > 0 and this.map_count < this.planet_count:
+            text += f' (Mapped: {this.map_count}/{this.planet_count})'
         this.label['text'] = text
     else:
         this.label['text'] = 'Pioneer: Nothing Scanned'
@@ -1018,7 +1029,7 @@ def update_display() -> None:
                                      x=this.overlay_anchor_x.get(), y=this.overlay_anchor_y.get(),
                                      color=this.overlay_color.get())
             else:
-                this.overlay.display("pioneer_text", "Pioneer: Waiting for Data",
+                this.overlay.display("pioneer_text", "Pioneer: Awaiting Data",
                                      x=this.overlay_anchor_x.get(), y=this.overlay_anchor_y.get(),
                                      color=this.overlay_color.get())
         else:
