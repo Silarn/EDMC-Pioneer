@@ -815,11 +815,15 @@ def process_body_values(body: PlanetData | StarData | None) -> None:
     undiscovered = not body.is_discovered(this.commander.id) or body.get_scan_state(this.commander.id) < 2
     unscanned = body.get_scan_state(this.commander.id) < 1
     if type(body) is StarData:
-        k = get_starclass_k(body.get_type())
-        value, honk_value = get_star_value(
-            k, body.get_mass(),
-            not body.was_discovered(this.commander.id) if not unscanned else False
-        )
+        if body.get_type() == 'SupermassiveBlackHole':
+            value = 261790
+            honk_value = 0
+        else:
+            k = get_starclass_k(body.get_type())
+            value, honk_value = get_star_value(
+                k, body.get_mass(),
+                not body.was_discovered(this.commander.id) if not unscanned else False
+            )
         if body.get_distance() == 0.0:
             this.main_star_value = value if not undiscovered else 0
             this.main_star_name = 'Main star' if this.system.name == body.get_name() \

@@ -1,5 +1,5 @@
-def get_starclass_k(star_class: str) -> int:
-    if star_class in ['N', 'H', 'SupermassiveBlackHole']:
+def get_starclass_k(star_class: str) -> float:
+    if star_class in ['N', 'H']:
         return 22628
     elif star_class.startswith('D'):
         return 14057
@@ -42,7 +42,7 @@ def get_planetclass_k(planet_class: str, terraformable: bool) -> tuple[int, int,
     return base, terraform, mult
 
 
-def get_star_value(k: int, mass: float, first_discoverer: bool) -> tuple[int, int]:
+def get_star_value(k: float, mass: float, first_discoverer: bool) -> tuple[int, int]:
     value = k + (mass * k / 66.25)
     honk_value = value / 3
     if first_discoverer:
