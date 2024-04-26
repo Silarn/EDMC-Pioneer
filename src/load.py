@@ -924,7 +924,8 @@ def process_discovery() -> None:
             undiscovered = True
         if body.get_scan_state(this.commander.id) < 2:
             undiscovered = True
-            nav = True
+            if body.get_scan_state(this.commander.id) == 1:
+                nav = True
         if nav and undiscovered:
             break
     this.system_has_undiscovered = undiscovered
