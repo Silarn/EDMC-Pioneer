@@ -572,33 +572,36 @@ def calc_system_value() -> tuple[int, int, int, int]:
                 bodies_text += 'Honk Value: {}'.format(
                     this.formatter.format_credits(max_honk_value)
                 ) + '\n'
-            value_sum += max_honk_value
-            min_value_sum += min_honk_value
+            value_sum += max_honk_value if this.main_star_value else 0
+            min_value_sum += min_honk_value if this.main_star_value else 0
             honk_sum += max_honk_value
             min_honk_sum += min_honk_value
-        max_value_sum += max_honk_value
-        min_max_value_sum += min_honk_value
+        max_value_sum += max_honk_value if this.main_star_value else 0
+        min_max_value_sum += min_honk_value if this.main_star_value else 0
         bodies_text += '------------------' + '\n'
-    this.values_label['text'] = '{}:\n   {}\n   {} + {} = {}\n'.format(
-        this.main_star_name,
-        this.main_star_type,
-        this.formatter.format_credits(this.main_star_value),
-        this.formatter.format_credits(honk_sum) if honk_sum == min_honk_sum else '{} to {}'.format(
-            this.formatter.format_credits(min_honk_sum),
-            this.formatter.format_credits(honk_sum)
-        ),
-        (this.formatter.format_credits(
-            this.main_star_value + honk_sum)) if honk_sum == min_honk_sum else '{} to {}'.format(
-            this.formatter.format_credits(this.main_star_value + min_honk_sum),
-            this.formatter.format_credits(this.main_star_value + honk_sum)
-        ))
-    if this.show_carrier_values.get():
-        is_range = honk_sum != min_honk_sum
-        this.values_label['text'] += '   Carrier: {}{} ({} -> carrier)\n'.format(
-            'Up to ' if is_range else '',
-            this.formatter.format_credits(int((this.main_star_value + honk_sum) * .75)),
-            this.formatter.format_credits(int((this.main_star_value + honk_sum) * .125))
-        )
+    if this.main_star_name:
+        this.values_label['text'] = '{}:\n   {}\n   {} + {} = {}\n'.format(
+            this.main_star_name,
+            this.main_star_type,
+            this.formatter.format_credits(this.main_star_value),
+            this.formatter.format_credits(honk_sum) if honk_sum == min_honk_sum else '{} to {}'.format(
+                this.formatter.format_credits(min_honk_sum),
+                this.formatter.format_credits(honk_sum)
+            ),
+            (this.formatter.format_credits(
+                this.main_star_value + honk_sum)) if honk_sum == min_honk_sum else '{} to {}'.format(
+                this.formatter.format_credits(this.main_star_value + min_honk_sum),
+                this.formatter.format_credits(this.main_star_value + honk_sum)
+            ))
+        if this.show_carrier_values.get():
+            is_range = honk_sum != min_honk_sum
+            this.values_label['text'] += '   Carrier: {}{} ({} -> carrier)\n'.format(
+                'Up to ' if is_range else '',
+                this.formatter.format_credits(int((this.main_star_value + honk_sum) * .75)),
+                this.formatter.format_credits(int((this.main_star_value + honk_sum) * .125))
+            )
+    else:
+        this.values_label['text'] = 'No main star info\nCheck for nav beacon data\n'
     this.values_label['text'] += '------------------' + '\n'
     this.values_label['text'] += bodies_text
     status = get_system_status()
