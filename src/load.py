@@ -453,8 +453,8 @@ def journal_end(event: tk.Event) -> None:
 
 def calc_system_value() -> tuple[int, int, int, int]:
     have_belts = this.belt_count == this.belts_found
-    if not this.main_star_name:
-        this.values_label['text'] = 'Main star not scanned.\nSystem already visited?'
+    if not this.main_star_name and not len(this.bodies):
+        this.values_label['text'] = 'No scans detected.\nHonk or check nav beacon data.'
         return 0, 0, 0, 0
     max_value_sum = this.main_star_value
     min_max_value_sum = this.main_star_value
