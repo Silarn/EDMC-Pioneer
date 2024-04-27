@@ -816,7 +816,7 @@ def process_body_values(body: PlanetData | StarData | None) -> None:
         return
 
     undiscovered = not body.is_discovered(this.commander.id) or body.get_scan_state(this.commander.id) < 2
-    unscanned = body.get_scan_state(this.commander.id) < 1
+    unscanned = body.get_scan_state(this.commander.id) == 0
     if type(body) is StarData:
         if body.get_type() == 'SupermassiveBlackHole':
             value = 261790
