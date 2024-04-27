@@ -997,15 +997,14 @@ def update_display() -> None:
             text += ' (H)'
         if this.is_nav_beacon:
             text += ' (N)'
-        if system_status.fully_scanned:
-            if all_belts_found:
-                if this.system_was_mapped and not this.system_was_scanned:
-                    text += ' (B)'
-                if not this.system_has_undiscovered:
-                    if this.system_was_scanned:
-                        text += ' (S)'
-                    else:
-                        text += ' (S+)'
+        if this.system_was_mapped and not this.system_was_scanned:
+            text += ' (B)'
+        if system_status.fully_scanned and len(this.bodies) + 1 >= this.system.body_count:
+            if all_belts_found and not this.system_has_undiscovered:
+                if this.system_was_scanned:
+                    text += ' (S)'
+                else:
+                    text += ' (S+)'
             if this.planet_count > 0 and this.planet_count == this.map_count:
                 if this.system_was_mapped:
                     text += ' (M)'
