@@ -31,8 +31,10 @@ def get_planetclass_k(planet_class: str, terraformable: bool) -> tuple[int, int,
             terraform = 116295
             mult = .75
     elif planet_class == 'Earthlike body':
-        base = 64831 + 116295  # Terraform is assumed as maximum value
-        terraform = 0
+        # Natural ELWs seem to get the full terraformable bonus while terraformed get a smaller one
+        base = 64831
+        terraform = 116295
+        mult = 1.0 if not terraformable else 0.0
     else:
         base = 300
         if terraformable:
