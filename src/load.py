@@ -1031,7 +1031,7 @@ def update_display() -> None:
         if text[-1] != '\n':
             text += '\n'
 
-        body_count = this.system.body_count if system_status.honked else len(this.bodies) + 1
+        body_count = this.system.body_count if system_status.honked else '?'
         text += f'B#: {len(this.bodies) + 1}/{body_count} NB#: {this.system.non_body_count}'
         if this.belt_count:
             text += f' (Belts: {this.belts_found}/{this.belt_count})'
