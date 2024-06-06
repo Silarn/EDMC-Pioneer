@@ -245,7 +245,7 @@ def export_text() -> None:
     file.close()
 
 
-def plugin_prefs(parent: nb.Frame, cmdr: str, is_beta: bool) -> nb.Frame:
+def plugin_prefs(parent: ttk.Notebook, cmdr: str, is_beta: bool) -> nb.Frame:
     """
     EDMC settings pane hook.
     Build settings display and hook in settings properties.
@@ -275,7 +275,7 @@ def plugin_prefs(parent: nb.Frame, cmdr: str, is_beta: bool) -> nb.Frame:
     frame.columnconfigure(2, weight=1)
     frame.rowconfigure(60, weight=1)
 
-    title_frame = nb.Frame(frame)
+    title_frame = tk.Frame(frame, background='')
     title_frame.grid(row=1, columnspan=3, sticky=tk.NSEW)
     title_frame.columnconfigure(0, weight=1)
     HyperlinkLabel(title_frame, text=this.NAME, background=nb.Label().cget('background'),
@@ -296,7 +296,7 @@ def plugin_prefs(parent: nb.Frame, cmdr: str, is_beta: bool) -> nb.Frame:
     ttk.Separator(frame).grid(row=5, columnspan=3, pady=y_padding * 2, sticky=tk.EW)
     nb.Label(frame, text='Valuable Body Minimum:').grid(row=10, column=0, padx=x_padding, sticky=tk.W)
     vcmd = (frame.register(validate_int))
-    nb.Entry(frame, textvariable=this.min_value,
+    nb.EntryMenu(frame, textvariable=this.min_value,
              validate='all', validatecommand=(vcmd, '%P')).grid(row=10, column=1, sticky=tk.W)
     nb.Label(frame, text='Cr').grid(row=10, column=2, sticky=tk.W)
     nb.Checkbutton(
@@ -342,15 +342,16 @@ def plugin_prefs(parent: nb.Frame, cmdr: str, is_beta: bool) -> nb.Frame:
         text='Enable overlay',
         variable=this.use_overlay
     ).grid(row=41, column=0, padx=x_button_padding, pady=0, sticky=tk.W)
-    color_button = nb.ColoredButton(
+    color_button = tk.Button(
         frame,
         text='Text Color',
         foreground=this.overlay_color.get(),
         background='grey4',
         command=lambda: color_chooser()
-    ).grid(row=42, column=0, padx=x_button_padding, pady=y_padding, sticky=tk.W)
+    )
+    color_button.grid(row=42, column=0, padx=x_button_padding, pady=y_padding, sticky=tk.W)
 
-    anchor_frame = nb.Frame(frame)
+    anchor_frame = tk.Frame(frame, background='')
     anchor_frame.grid(row=41, column=1, sticky=tk.NSEW)
     anchor_frame.columnconfigure(4, weight=1)
 
@@ -358,13 +359,13 @@ def plugin_prefs(parent: nb.Frame, cmdr: str, is_beta: bool) -> nb.Frame:
         .grid(row=0, column=0, sticky=tk.W)
     nb.Label(anchor_frame, text='X') \
         .grid(row=0, column=1, sticky=tk.W)
-    nb.Entry(
+    nb.EntryMenu(
         anchor_frame, text=this.overlay_anchor_x.get(), textvariable=this.overlay_anchor_x,
         width=8, validate='all', validatecommand=(vcmd, '%P')
     ).grid(row=0, column=2, sticky=tk.W)
     nb.Label(anchor_frame, text='Y') \
         .grid(row=0, column=3, sticky=tk.W)
-    nb.Entry(
+    nb.EntryMenu(
         anchor_frame, text=this.overlay_anchor_y.get(), textvariable=this.overlay_anchor_y,
         width=8, validate='all', validatecommand=(vcmd, '%P')
     ).grid(row=0, column=4, sticky=tk.W)
