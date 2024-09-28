@@ -31,6 +31,8 @@ from ExploData.explo_data.RegionMap import findRegion
 from ExploData.explo_data.body_data.struct import PlanetData, StarData, load_planets, load_stars, get_main_star, \
     NonBodyData, load_non_bodies
 from ExploData.explo_data.journal_parse import register_event_callbacks, parse_journals, register_journal_callbacks
+import ExploData.explo_data.edsm_parse
+from ExploData.explo_data.edsm_parse import register_edsm_callbacks
 
 import pioneer.const
 from pioneer.overlay import Overlay
@@ -59,6 +61,8 @@ class This:
         self.scrollable_frame: ttk.Frame | None = None
         self.label: tk.Label | None = None
         self.copy_button: tk.Label | None = None
+        self.edsm_button: tk.Label | None = None
+        self.edsm_failed: tk.Label | None = None
         self.values_label: tk.Label | None = None
         self.total_label: tk.Label | None = None
         self.update_button: HyperlinkLabel | None = None
@@ -189,6 +193,7 @@ def plugin_app(parent: tk.Frame) -> tk.Frame:
         parse_config()
         if not len(sorted(plug.PLUGINS, key=lambda item: item.name == 'BioScan')):  # type: list[plug.Plugin]
             register_journal_callbacks(this.frame, 'pioneer', journal_start, journal_update, journal_end)
+        register_edsm_callbacks(this.frame,'pioneer', edsm_start, edsm_end)
         this.label = tk.Label(this.frame)
         this.label.grid(row=0, column=0, columnspan=2, sticky=tk.N)
         this.scroll_canvas = tk.Canvas(this.frame, height=100, highlightthickness=0)
@@ -221,6 +226,10 @@ def plugin_app(parent: tk.Frame) -> tk.Frame:
         this.copy_button = tk.Label(this.frame, text='Export', fg='white', cursor='hand2')
         this.copy_button.grid(row=4, columnspan=2, sticky=tk.EW)
         this.copy_button.bind('<Button-1>', lambda e: export_text())
+        if not len(sorted(plug.PLUGINS, key=lambda item: item.name == 'BioScan')):  # type: list[plug.Plugin]
+            this.edsm_button = tk.Label(this.frame, text='Fetch EDSM Data', fg='white', cursor='hand2')
+            this.edsm_button.grid(row=3, columnspan=2, sticky=tk.EW)
+            this.edsm_button.bind('<Button-1>', lambda e: edsm_fetch())
         update_display()
         theme.register(this.values_label)
     return this.frame
@@ -450,6 +459,21 @@ def journal_end(event: tk.Event) -> None:
         for body in this.bodies.values():
             process_body_values(body)
         update_display()
+
+
+def edsm_fetch() -> None:
+    ExploData.explo_data.edsm_parse.edsm_fetch(this.system.name)
+
+
+def edsm_start(event: tk.Event) -> None:
+    this.fetched_edsm = True
+    update_display()
+
+
+def edsm_end(event: tk.Event) -> None:
+    reload_system_data()
+    calc_counts()
+    update_display()
 
 
 def calc_system_value() -> tuple[int, int, int, int]:
@@ -703,19 +727,7 @@ def journal_entry(cmdr: str, is_beta: bool, system: str, station: str,
             this.system.z = state['StarPos'][2]
             sector = findRegion(this.system.x, this.system.y, this.system.z)
             this.system.region = sector[0] if sector is not None else None
-        this.bodies = load_planets(this.system, this.sql_session) | load_stars(this.system, this.sql_session)
-        this.non_bodies = load_non_bodies(this.system, this.sql_session)
-        for body in this.bodies.values():
-            process_body_values(body)
-        main_star = get_main_star(this.system, this.sql_session)
-        if main_star:
-            this.main_star_name = 'Main star' if this.system == main_star.name \
-                else '{} (Main star)'.format(main_star.name)
-            this.main_star_type = get_star_label(main_star.type, main_star.subclass,
-                                                 main_star.luminosity, this.show_descriptors.get())
-            this.bodies.pop(main_star.name, None)
-            process_belts()
-        process_discovery()
+        reload_system_data()
 
     if not this.system or not this.commander:
         return ''
@@ -730,6 +742,22 @@ def journal_entry(cmdr: str, is_beta: bool, system: str, station: str,
         update_display()
 
     return ''  # No error
+
+
+def reload_system_data() -> None:
+    this.bodies = load_planets(this.system, this.sql_session) | load_stars(this.system, this.sql_session)
+    this.non_bodies = load_non_bodies(this.system, this.sql_session)
+    for body in this.bodies.values():
+        process_body_values(body)
+    main_star = get_main_star(this.system, this.sql_session)
+    if main_star:
+        this.main_star_name = 'Main star' if this.system == main_star.name \
+            else '{} (Main star)'.format(main_star.name)
+        this.main_star_type = get_star_label(main_star.type, main_star.subclass,
+                                             main_star.luminosity, this.show_descriptors.get())
+        this.bodies.pop(main_star.name, None)
+        process_belts()
+    process_discovery()
 
 
 def process_data_event(entry: Mapping[str, Any]) -> None:
@@ -937,6 +965,11 @@ def process_discovery() -> None:
 
 
 def update_display() -> None:
+    if not len(sorted(plug.PLUGINS, key=lambda item: item.name == 'BioScan')):  # type: list[plug.Plugin]
+        if this.fetched_edsm or not this.system:
+            this.edsm_button.grid_remove()
+        else:
+            this.edsm_button.grid()
     system_status = get_system_status()
     if not system_status:
         this.label['text'] = 'Pioneer: Awaiting Data'
