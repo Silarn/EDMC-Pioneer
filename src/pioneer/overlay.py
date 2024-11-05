@@ -8,7 +8,10 @@ from pioneer import const
 try:
     from EDMCOverlay import edmcoverlay
 except ImportError:
-    edmcoverlay = None
+    try:
+        from edmcoverlay import edmcoverlay
+    except ImportError:
+        edmcoverlay = None
 
 logger = get_plugin_logger(const.plugin_name)
 
