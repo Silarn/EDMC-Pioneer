@@ -43,23 +43,35 @@ and install the prerequisite plugin to make use of this feature.
 
 The text color and anchor point for the display are configurable.
 
+## EDSM Parsing
+Once per system, data can be parsed from EDSM as an alternative to getting the data in-game. This may save time for
+bubble (pre-explored) systems over scanning a nav beacon. Note that EDSM data is not a substitute for scanning and
+mapping planets; you will not earn any credits this way. However, it could quickly highlight decently valuable mapping
+targets in the bubble.
+
+Note that this should be triggered from the [BioScan] interface if you have both plugins installed.
+
 ## Requirements
 * EDMC version 5 and above
 * (Optional) [EDMCOverlay] (Windows) or [edmcoverlay2] (Linux)
 
 ## Installation
 * Download the [latest release] of both Pioneer and ExploData
-  * Users of the prebuilt Windows EXE EDMC must use the Windows EXE version of ExploData
-  * Native python users should use the native python version
-  * There is only one version of Pioneer moving forward
+  * Appropriate versions of both are available on every release page
+  * ExploData has multiple versions depending on how you run EDMC:
+    * Users of the prebuilt Windows EXE must use the Windows EXE version of ExploData
+    * Flatpak users must use the flatpak version, which is bundled with SQLAlchemy
+    * Native python users should use the native python version (see additional instructions below)
   * If you use [BioScan], make sure the version you're using is up-to-date with ExploData
 * Extract the `.zip` archives that you downloaded into the EDMC `plugins` folder
   * This is accessible via the plugins tab in the EDMC settings window
   * ExploData must be named as it is packaged, or you will run into trouble loading dependencies
 * For native python users:
-  * Run `pip install -r requirements.txt` within the ExploData plugin directory to install SQLAlchemy
-  * Ensure the correct `pip` is used for Python 3.11
-* (Optional) Install [EDMCOverlay] or [edmcoverlay2] for overlay support depending on your OS
+  * If you use `venv`, install the SQLAlchemy requirement from the `requirements.txt` to the EDMC venv
+  * For system python, run `pip install -r requirements.txt` within the ExploData plugin directory to install SQLAlchemy
+  * Ensure the correct `pip` is used for your version of EDMC
+* (Optional) Install the [EDMCOverlay] plugin for overlay support (or [edmcoverlay2] for Linux)
+  * Either 'EDMCOverlay' or 'edmcoverlay' should work as the plugin directory name
 * Start or restart EDMC to register the plugin and run any necessary database migrations
 
 ## Acknowledgements
