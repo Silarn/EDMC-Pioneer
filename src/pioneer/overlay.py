@@ -103,9 +103,8 @@ class Overlay:
             formatted_text = text.replace('🗸', '*').replace('\N{memo}', '»').split("\n")
         else:
             formatted_text = text.replace('🗸', '√').replace('\N{memo}', '♦').split("\n")
-        if not scrolled:
-            self.clear(message_id, False)
-        elif message_id in self._text_blocks and len(formatted_text) < len(self._text_blocks[message_id].text):
+        if not scrolled or (message_id in self._text_blocks and
+                            len(formatted_text) < len(self._text_blocks[message_id].text)):
             self.clear(message_id, len(formatted_text), False)
         self._text_blocks[message_id] = TextBlock(
             text=formatted_text, x=x, y=y, size=size, color=color, scrolled=scrolled, limit=limit, delay=delay
@@ -113,22 +112,26 @@ class Overlay:
         if not scrolled:
             self.draw(message_id)
 
-    def clear(self, message_id: str, from_line: int = 0, remove: bool = True) -> None:
+    def clear(self, message_id: str, new_length: int = 0, remove: bool = True) -> None:
         """
         Clears a given text block identified by a unique message ID.
 
         :param message_id: Unique ID of text to clear.
-        :param from_line: Start point of clear
+        :param new_length: Start point of clear
         :param remove: Remove the message from the cache.
         """
+
         try:
             if message_id in self._text_blocks:
-                count = from_line
-                while (count < len(self._text_blocks[message_id].text) or
-                       (self._text_blocks[message_id].limit > 0 and count < self._text_blocks[message_id].limit)):
-                    self._overlay.send_message("{}_{}".format(message_id, count),
-                                               "", "#ffffff", 0, 0, ttl=1)
-                    count += 1
+                last_len = self._text_blocks[message_id].limit if self._text_blocks[message_id].limit else len(self._text_blocks[message_id].text)
+                last_len = min(len(self._text_blocks[message_id].text), last_len)
+                if new_length:
+                    if new_length < last_len:
+                        for item in range(new_length, last_len):
+                            self._overlay.send_raw({'id': f'{message_id}_{item}'})
+                else:
+                    for item in range(last_len):
+                        self._overlay.send_raw({'id': f'{message_id}_{item}'})
                 if remove:
                     self._text_blocks.pop(message_id, None)
         except Exception as ex:
