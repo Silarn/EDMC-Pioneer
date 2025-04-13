@@ -14,6 +14,7 @@ from typing import Any, MutableMapping, Mapping
 
 import tkinter as tk
 from tkinter import ttk, colorchooser as tkColorChooser, Widget as tkWidget
+
 from ttkHyperlinkLabel import HyperlinkLabel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -35,84 +36,14 @@ import ExploData.explo_data.edsm_parse
 from ExploData.explo_data.edsm_parse import register_edsm_callbacks
 
 import pioneer.const
-from pioneer.overlay import Overlay
-from pioneer.data import BodyValueData
-from pioneer.util import get_star_label, get_body_shorthand
 from pioneer.body_calc import get_body_value, get_star_value, get_starclass_k, get_planetclass_k
-from pioneer.format_util import Formatter
+from pioneer.data import BodyValueData
+from pioneer.globals import pioneer_globals
 from pioneer.status_flags import StatusFlags
+from pioneer.util import get_star_label, get_body_shorthand
 
 efficiency_bonus = 1.25
-
-
-class This:
-    """Holds module globals."""
-
-    def __init__(self):
-        self.NAME = pioneer.const.plugin_name
-        self.VERSION = semantic_version.Version(pioneer.const.plugin_version)
-        self.formatter = Formatter()
-        self.overlay = Overlay()
-
-        self.parent: tk.Frame | None = None
-        self.frame: tk.Frame | None = None
-        self.scroll_canvas: tk.Canvas | None = None
-        self.scrollbar: ttk.Scrollbar | None = None
-        self.scrollable_frame: ttk.Frame | None = None
-        self.label: tk.Label | None = None
-        self.copy_button: tk.Label | None = None
-        self.edsm_button: tk.Label | None = None
-        self.edsm_failed: tk.Label | None = None
-        self.values_label: tk.Label | None = None
-        self.total_label: tk.Label | None = None
-        self.update_button: HyperlinkLabel | None = None
-        self.journal_label: tk.Label | None = None
-
-        # DB
-        self.sql_session: Session | None = None
-        self.migration_failed: bool = False
-        self.db_mismatch: bool = False
-
-        # Plugin state
-        self.odyssey: bool = False
-        self.game_version = semantic_version.Version('0.0.0')
-        self.commander: Commander | None = None
-        self.system: System | None = None
-        self.system_status: SystemStatus | None = None
-        self.system_was_scanned: bool = False
-        self.system_was_mapped: bool = False
-        self.system_has_undiscovered: bool = False
-        self.is_nav_beacon: bool = False
-        self.analysis_mode: bool = True
-        self.in_flight: bool = False
-        self.bodies: dict[str, PlanetData | StarData] = {}
-        self.non_bodies: dict[str, NonBodyData] = {}
-        self.body_values: dict[str, BodyValueData] = {}
-        self.scans = set()
-        self.main_star_value: int = 0
-        self.main_star_name = ''
-        self.main_star_type = 'Star'
-        self.map_count: int = 0
-        self.planet_count: int = 0
-        self.non_body_count: int = 0
-        self.belt_count: int = 0
-        self.belts_found: int = 0
-
-        # Setting vars
-        self.min_value: tk.IntVar | None = None
-        self.shorten_values: tk.BooleanVar | None = None
-        self.show_details: tk.BooleanVar | None = None
-        self.show_biological: tk.BooleanVar | None = None
-        self.show_descriptors: tk.BooleanVar | None = None
-        self.show_carrier_values: tk.BooleanVar | None = None
-        self.show_map_counter: tk.BooleanVar | None = None
-        self.use_overlay: tk.BooleanVar | None = None
-        self.overlay_color: tk.StringVar | None = None
-        self.overlay_anchor_x: tk.IntVar | None = None
-        self.overlay_anchor_y: tk.IntVar | None = None
-
-
-this = This()
+this = pioneer_globals
 logger = get_plugin_logger(this.NAME)
 
 
@@ -477,6 +408,8 @@ def edsm_end(event: tk.Event) -> None:
 
 
 def calc_system_value() -> tuple[int, int, int, int]:
+    global efficiency_bonus
+
     have_belts = this.belt_count == this.belts_found
     if not this.main_star_name and not len(this.bodies):
         this.values_label['text'] = 'No scans detected.\nHonk or check nav beacon data.'
@@ -819,6 +752,11 @@ def dashboard_entry(cmdr: str, is_beta: bool, entry: dict[str, any]) -> str:
         this.in_flight = in_flight
         update = True
 
+    gui_focus = int(entry.get('GuiFocus', 0))
+    if gui_focus != this.gui_focus and ((gui_focus in [0, 2, 9, 10]) != (this.gui_focus in [0, 2, 9, 10])):
+        update = True
+    this.gui_focus = gui_focus
+
     if update:
         update_display()
 
@@ -965,6 +903,8 @@ def process_discovery() -> None:
 
 
 def update_display() -> None:
+    global efficiency_bonus
+
     if not len(sorted(plug.PLUGINS, key=lambda item: item.name == 'BioScan')):  # type: list[plug.Plugin]
         if this.fetched_edsm or not this.system:
             this.edsm_button.grid_remove()
@@ -1103,7 +1043,7 @@ def update_display() -> None:
                 this.formatter.format_credits(int(total_value * .125)))
 
     if this.use_overlay.get() and this.overlay.available():
-        if this.analysis_mode and this.in_flight:
+        if this.analysis_mode and this.in_flight and this.gui_focus in [0, 2, 9, 10]:
             if this.label['text']:
                 overlay_text = this.label['text'] + "\n \n" + this.total_label['text']
                 this.overlay.display("pioneer_text", overlay_text,
