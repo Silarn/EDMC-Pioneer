@@ -59,6 +59,7 @@ class Globals:
         self.is_nav_beacon: bool = False
         self.analysis_mode: bool = True
         self.in_flight: bool = False
+        self.fsd_jump: bool = False
         self.bodies: dict[str, PlanetData | StarData] = {}
         self.non_bodies: dict[str, NonBodyData] = {}
         self.body_values: dict[str, BodyValueData] = {}

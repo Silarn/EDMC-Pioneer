@@ -741,6 +741,16 @@ def dashboard_entry(cmdr: str, is_beta: bool, entry: dict[str, any]) -> str:
         this.analysis_mode = (StatusFlags.IS_ANALYSIS_MODE in status)
         update = True
 
+    fsd_jump = StatusFlags.FSD_JUMP_IN_PROGRESS in status
+    if fsd_jump != this.fsd_jump:
+        if this.system and fsd_jump:
+            this.fsd_jump = True
+            if StatusFlags.SUPERCRUISE in status:
+                reset()
+        else:
+            this.fsd_jump = False
+        update = True
+
     in_flight = False
     if StatusFlags.IN_SHIP in status:
         if (StatusFlags.DOCKED in status) or (StatusFlags.LANDED in status):
@@ -1043,7 +1053,7 @@ def update_display() -> None:
                 this.formatter.format_credits(int(total_value * .125)))
 
     if this.use_overlay.get() and this.overlay.available():
-        if this.analysis_mode and this.in_flight and this.gui_focus in [0, 2, 9, 10]:
+        if overlay_should_display():
             if this.label['text']:
                 overlay_text = this.label['text'] + "\n \n" + this.total_label['text']
                 this.overlay.display("pioneer_text", overlay_text,
@@ -1062,6 +1072,12 @@ def update_display() -> None:
     else:
         this.scroll_canvas.grid_remove()
         this.scrollbar.grid_remove()
+
+
+def overlay_should_display() -> bool:
+    if not this.analysis_mode or not this.in_flight or this.gui_focus not in [0, 2, 9, 10] or this.fsd_jump:
+        return False
+    return True
 
 
 def bind_mousewheel(event: tk.Event) -> None:
