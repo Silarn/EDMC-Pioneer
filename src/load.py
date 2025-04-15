@@ -665,6 +665,11 @@ def journal_entry(cmdr: str, is_beta: bool, system: str, station: str,
     if not this.system or not this.commander:
         return ''
 
+    if entry['event'] == 'StartJump':
+        if entry['JumpType'] == 'Hyperspace':
+            reset()
+            update_display()
+
     this.sql_session.commit()
 
     if system_changed:
@@ -745,8 +750,6 @@ def dashboard_entry(cmdr: str, is_beta: bool, entry: dict[str, any]) -> str:
     if fsd_jump != this.fsd_jump:
         if this.system and fsd_jump:
             this.fsd_jump = True
-            if StatusFlags.SUPERCRUISE in status:
-                reset()
         else:
             this.fsd_jump = False
         update = True
