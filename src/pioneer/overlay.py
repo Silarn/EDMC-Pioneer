@@ -99,10 +99,7 @@ class Overlay:
         :param delay: Time between up/down scroll of scrolled text
         """
 
-        if sys.platform == 'linux':
-            formatted_text = text.replace('🗸', '*').replace('\N{memo}', '»').split("\n")
-        else:
-            formatted_text = text.replace('🗸', '√').replace('\N{memo}', '♦').split("\n")
+        formatted_text = text.split("\n")
         if not scrolled or (message_id in self._text_blocks and
                             len(formatted_text) < len(self._text_blocks[message_id].text)):
             self.clear(message_id, len(formatted_text), False)
