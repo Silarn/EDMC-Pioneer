@@ -423,19 +423,21 @@ def calc_system_value() -> tuple[int, int, int, int]:
     for body_name, body_data in sorted(this.bodies.items(), key=lambda item: item[1].get_id()):
         is_range = this.body_values[body_name].get_mapped_values()[1] != \
                    this.body_values[body_name].get_mapped_values()[0]
-        bodies_text += '{} - {}{}{}{}{}{}:'.format(
+        bodies_text += '{} - {}{}{}{}{}{}{}:'.format(
             body_name,
             body_data.get_type() if type(body_data) is PlanetData else
             get_star_label(body_data.get_type(),
                            body_data.get_subclass(),
                            body_data.get_luminosity(),
                            this.show_descriptors.get()),
-            ' <TC>' if type(body_data) is PlanetData and body_data.is_terraformable() else '',
-            ' (B)' if type(body_data) is PlanetData and not body_data.was_discovered(this.commander.id)
-                      and body_data.was_mapped(this.commander.id) else '',
-            ' (N)' if body_data.get_scan_state(this.commander.id) < 2 else '',
-            ' -S-' if body_data.was_discovered(this.commander.id) else '',
-            ' -M-' if type(body_data) is PlanetData and body_data.was_mapped(this.commander.id) else '',
+            ' \N{DECIDUOUS TREE}' if type(body_data) is PlanetData and body_data.is_terraformable() else '',
+            ' \N{SUNSET OVER BUILDINGS}' if type(body_data) is PlanetData and not body_data.was_discovered(this.commander.id)
+                              and body_data.was_mapped(this.commander.id) else '',
+            ' \N{COMPASS}' if body_data.get_scan_state(this.commander.id) < 2 else '',
+            ' \N{WHITE EXCLAMATION MARK ORNAMENT}\N{FOOT}' if type(body_data) is PlanetData and body_data.was_footfalled(this.commander.id) is True else
+                ' \N{FOOT}' if type(body_data) is PlanetData and  body_data.footfall(this.commander.id) else '',
+            ' \N{WHITE EXCLAMATION MARK ORNAMENT}\N{LEFT-POINTING MAGNIFYING GLASS}' if body_data.was_discovered(this.commander.id) else '',
+            ' \N{WHITE EXCLAMATION MARK ORNAMENT}\N{WORLD MAP}\N{VARIATION SELECTOR-16}' if type(body_data) is PlanetData and body_data.was_mapped(this.commander.id) else ''
         ) + '\n'
         if type(body_data) is PlanetData and body_data.is_mapped(this.commander.id):
             efficiency = efficiency_bonus if body_data.was_efficient(this.commander.id) else 1
@@ -735,6 +737,16 @@ def process_data_event(entry: Mapping[str, Any]) -> None:
                 this.bodies[body_short_name] = PlanetData.from_journal(this.system, body_short_name,
                                                                        entry['BodyID'], this.sql_session)
             update_display()
+        case 'Disembark':
+            if entry.get('OnPlanet', False):
+                body_short_name = get_body_name(entry['BodyName'])
+                if body_short_name in this.bodies:
+                    this.bodies[body_short_name].refresh()
+                else:
+                    this.bodies[body_short_name] = PlanetData.from_journal(this.system, body_short_name,
+                                                                           entry['BodyID'], this.sql_session)
+                update_display()
+
     calc_counts()
 
 
@@ -755,7 +767,7 @@ def dashboard_entry(cmdr: str, is_beta: bool, entry: dict[str, any]) -> str:
         update = True
 
     in_flight = False
-    if StatusFlags.IN_SHIP in status:
+    if StatusFlags.IN_SHIP in status or StatusFlags.IN_FIGHTER in status:
         if (StatusFlags.DOCKED in status) or (StatusFlags.LANDED in status):
             in_flight = False
         else:
@@ -981,22 +993,22 @@ def update_display() -> None:
         else:
             text = 'Pioneer: Scanning'
         if system_status.honked:
-            text += ' (H)'
+            text += ' \N{GLOBE WITH MERIDIANS}'
         if this.is_nav_beacon:
-            text += ' (N)'
+            text += ' \N{COMPASS}'
         if this.system_was_mapped and not this.system_was_scanned:
-            text += ' (B)'
+            text += ' \N{SUNSET OVER BUILDINGS}'
         if system_status.fully_scanned and len(this.bodies) + 1 >= this.system.body_count:
             if all_belts_found and not this.system_has_undiscovered:
                 if this.system_was_scanned:
-                    text += ' (S)'
+                    text += ' \N{LEFT-POINTING MAGNIFYING GLASS}'
                 else:
-                    text += ' (S+)'
+                    text += ' \N{LEFT-POINTING MAGNIFYING GLASS}\N{GLOWING STAR}'
             if this.planet_count > 0 and this.planet_count == this.map_count:
                 if this.system_was_mapped:
-                    text += ' (M)'
+                    text += ' \N{WORLD MAP}\N{VARIATION SELECTOR-16}'
                 else:
-                    text += ' (M+)'
+                    text += ' \N{WORLD MAP}\N{VARIATION SELECTOR-16}\N{GLOWING STAR}'
         text += '\n'
 
         if valuable_body_names:

@@ -1,3 +1,3 @@
 plugin_name = 'Pioneer'
 plugin_version = '2.2.2'
-db_version = 9
+db_version = 10

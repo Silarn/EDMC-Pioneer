@@ -46,16 +46,18 @@ def get_body_shorthand(body: PlanetData, commander_id) -> str:
         
     return ' [{}]{}{}{}{}'.format(
         tag,
-        ' <TC>' if body.is_terraformable() else '',
-        ' (B)' if not body.was_discovered(commander_id) and body.was_mapped(commander_id) else '',
-        ' -S-' if body.was_discovered(commander_id) else '',
-        ' -M-' if body.was_mapped(commander_id) else ''
+        ' \N{DECIDUOUS TREE}' if body.is_terraformable() else '',
+        ' \N{SUNSET OVER BUILDINGS}' if not body.was_discovered(commander_id) and body.was_mapped(commander_id) else '',
+        ' \N{WHITE EXCLAMATION MARK ORNAMENT}\N{LEFT-POINTING MAGNIFYING GLASS}' if body.was_discovered(commander_id) else '',
+        ' \N{WHITE EXCLAMATION MARK ORNAMENT}\N{WORLD MAP}\N{VARIATION SELECTOR-16}' if body.was_mapped(commander_id) else ''
     )
 
 
 def get_star_label(star_class: str = '', subclass: int = 0, luminosity: str = '', show_descriptors: bool = False) -> str:
     name = 'Star'
     star_type = ''
+    star_icon = ''
+    fuel = False
     if luminosity == 'Ia0':
         star_type = 'hypergiant'
     elif luminosity.startswith('VI'):
@@ -72,6 +74,7 @@ def get_star_label(star_class: str = '', subclass: int = 0, luminosity: str = ''
         star_type = 'supergiant'
     if star_class.startswith('D'):
         name = '{}{}white dwarf'
+        star_icon = '\N{HIGH VOLTAGE SIGN}\N{HEADSTONE}\N{GLOWING STAR}'
         descriptors = []
         modifier = ''
         if star_class.find('A') is not -1:
@@ -94,33 +97,49 @@ def get_star_label(star_class: str = '', subclass: int = 0, luminosity: str = ''
                            ', '.join(descriptors) + ' ' if len(descriptors) else '').capitalize()
     elif star_class == 'H':
         name = 'black hole'
+        star_icon = '\N{MEDIUM BLACK CIRCLE}'
         show_descriptors = False
     elif star_class == 'SupermassiveBlackHole':
         star_class = 'H'
         name = 'supermassive black hole'
+        star_icon = '\N{MILKY WAY}\N{MEDIUM BLACK CIRCLE}'
         show_descriptors = False
     elif star_class == 'N':
         name = 'neutron star'
+        star_icon = '\N{HIGH VOLTAGE SIGN}\N{HEADSTONE}\N{MEDIUM WHITE CIRCLE}'
         show_descriptors = False
     elif star_class == 'O':
         name = 'blue {} star'
+        star_icon = '\N{LARGE BLUE CIRCLE}'
+        fuel = True
     elif star_class in ['B', 'B_BlueWhiteSuperGiant']:
         star_class = 'B'
         name = 'blue-white {} star'
+        star_icon = '\N{LARGE BLUE CIRCLE}'
+        fuel = True
     elif star_class in ['A', 'A_BlueWhiteSuperGiant']:
         star_class = 'A'
         name = 'white-blue {} star'
+        star_icon = '\N{MEDIUM WHITE CIRCLE}'
+        fuel = True
     elif star_class in ['F', 'F_WhiteSuperGiant']:
+        star_icon = '\N{MEDIUM WHITE CIRCLE}'
         star_class = 'F'
         name = 'white {} star'
+        fuel = True
     elif star_class in ['G', 'G_WhiteSuperGiant']:
         star_class = 'G'
         name = 'white-yellow {} star'
+        star_icon = '\N{LARGE YELLOW CIRCLE}'
+        fuel = True
     elif star_class in ['K', 'K_OrangeGiant']:
         star_class = 'K'
         name = 'yellow-orange {} star'
+        star_icon = '\N{LARGE ORANGE CIRCLE}'
+        fuel = True
     elif star_class.startswith('W'):
         name = '{}Wolf-Rayet {} star'
+        star_icon = '\N{HEADSTONE}\N{LARGE BLUE CIRCLE}'
         descriptor = ''
         if star_class[1:] == 'C':
             descriptor = 'carbon-rich '
@@ -133,6 +152,7 @@ def get_star_label(star_class: str = '', subclass: int = 0, luminosity: str = ''
         name = name.format(descriptor, star_type)
     elif star_class.startswith('C'):
         name = '{}{} carbon star'
+        star_icon = '\N{HEADSTONE}\N{LARGE ORANGE CIRCLE}'
         descriptor = ''
         if star_class[1:] == 'N':
             descriptor = 'deep red '
@@ -154,36 +174,45 @@ def get_star_label(star_class: str = '', subclass: int = 0, luminosity: str = ''
         if star_type == 'compact':
             star_type = 'subdwarf'
         name = 'red {} star'
+        star_icon = '\N{LARGE RED CIRCLE}'
+        fuel = True
     elif star_class == 'AeBe':
         if star_type == 'main-sequence':
             star_type = 'dwarf'
         if star_type == 'compact':
             star_type = 'subdwarf'
         name = 'Herbig Ae/Be {} star'
+        star_icon = '\N{HEADSTONE}\N{LARGE BLUE CIRCLE}'
     elif star_class == 'TTS':
         name = 'T Tauri star'
+        star_icon = '\N{BABY SYMBOL}\N{LARGE ORANGE CIRCLE}'
     elif star_class == 'L':
         if star_type == 'main-sequence':
             star_type = 'dwarf'
         if star_type == 'compact':
             star_type = 'subdwarf'
         name = 'dark red {} star'
+        star_icon = '\N{HEAVY LARGE CIRCLE}'
     elif star_class == 'T':
         if star_type == 'main-sequence':
             star_type = 'dwarf'
         if star_type == 'compact':
             star_type = 'subdwarf'
         name = 'methane {} star'
+        star_icon = '\N{LARGE PURPLE CIRCLE}'
     elif star_class == 'Y':
         if star_type == 'main-sequence':
             star_type = 'dwarf'
         if star_type == 'compact':
             star_type = 'subdwarf'
         name = 'brown {} star'
+        star_icon = '\N{LARGE BROWN CIRCLE}'
     elif star_class == 'MS':
         name = 'cooling red {} star'
+        star_icon = '\N{HEADSTONE}\N{LARGE ORANGE CIRCLE}'
     elif star_class == 'S':
         name = 'cool {} star'
+        star_icon = '\N{HEADSTONE}\N{LARGE ORANGE CIRCLE}'
 
     descriptors = ''
     if show_descriptors:
@@ -195,8 +224,9 @@ def get_star_label(star_class: str = '', subclass: int = 0, luminosity: str = ''
             descriptors = f'{luminosity_descriptor}{subclass_descriptor}'
     final_name = name.format(star_type)
     final_name = final_name[0].upper() + final_name[1:]
-    final = '{} ({}{} {}){}'.format(final_name, star_class, subclass, luminosity,
-                                    '\n   [{}]'.format(descriptors) if descriptors else '')
+    fuel_icon = '\N{FUEL PUMP}' if fuel else ''
+    descriptor_string = '\n   [{}]'.format(descriptors) if descriptors else ''
+    final = f'{fuel_icon}{star_icon}{final_name} ({star_class}{subclass} {luminosity}){descriptor_string}'
     return final
 
 
