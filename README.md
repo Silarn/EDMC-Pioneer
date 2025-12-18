@@ -16,11 +16,11 @@ It factors in the bonus on Odyssey / 4.0+ clients.
 
 ### Display
 Pioneer will display a number of things. As you progress a few indicators will appear at the top. A honked system will
-add a `<H>` tag. Fully scanned systems will add a `<S>` and if none of the bodies had been previously scanned it will
-display `<S+>`. Similarly, a fully mapped system will display `<M>` or `<M+>`.
+add a `🌐` tag. Fully scanned systems will add a `🔍` and if none of the bodies had been previously scanned it will
+display `🔍🌟`. Similarly, a fully mapped system will display `🗺` or `🗺️🌟`.
 
 Based on a configurable value, the top of the pane will display high value mappable bodies. These will be marked when
-terraformable `<T>`, previously scanned `-S-`, and previously mapped `-M-`. It can also display any bodies with
+terraformable `🌳`, previously scanned `❕🔍`, and previously mapped `❕🗺`. It can also display any bodies with
 biological signals. Following this is an optional scrollbox with a detailed breakdown of every system body.
 
 At the top is an estimate of the main star value including the honk bonus provided by all other bodies.
@@ -53,7 +53,8 @@ Note that this should be triggered from the [BioScan] interface if you have both
 
 ## Requirements
 * EDMC version 5 and above
-* (Optional) [EDMCOverlay] (Windows) or [edmcoverlay2] (Linux)
+* (Optional) [ModernOverlay]
+  * Alternatively [EDMCOverlay] (Windows) or [edmcoverlay2] (Linux)
 
 ## Installation
 * Download the [latest release] of both Pioneer and ExploData
@@ -70,8 +71,7 @@ Note that this should be triggered from the [BioScan] interface if you have both
   * If you use `venv`, install the SQLAlchemy requirement from the `requirements.txt` to the EDMC venv
   * For system python, run `pip install -r requirements.txt` within the ExploData plugin directory to install SQLAlchemy
   * Ensure the correct `pip` is used for your version of EDMC
-* (Optional) Install the [EDMCOverlay] plugin for overlay support (or [edmcoverlay2] for Linux)
-  * Either 'EDMCOverlay' or 'edmcoverlay' should work as the plugin directory name
+* (Optional) Install the [ModernOverlay] plugin for overlay support
 * Start or restart EDMC to register the plugin and run any necessary database migrations
 
 ## Acknowledgements
@@ -102,6 +102,7 @@ Licensed under the [GNU Public License (GPL)][GPLv2] version 2 or later.
 [ExploData]: https://github.com/Silarn/EDMC-ExploData
 [BioScan]: https://github.com/Silarn/EDMC-BioScan
 [EcCon]: https://github.com/n-st/EDMC-EconomicalCartographics
+[ModernOverlay]: https://github.com/SweetJonnySauce/EDMCModernOverlay
 [EDMCOverlay]: https://github.com/inorton/EDMCOverlay
 [edmcoverlay2]: https://github.com/sersorrel/edmcoverlay2
 [latest release]: https://github.com/Silarn/EDMC-Pioneer/releases/latest
