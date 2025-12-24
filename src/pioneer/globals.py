@@ -56,6 +56,8 @@ class Globals:
         self.system_was_scanned: bool = False
         self.system_was_mapped: bool = False
         self.system_has_undiscovered: bool = False
+        self.current_body_name: str | None = None
+        self.overlay_local_text: str | None = None
         self.is_nav_beacon: bool = False
         self.analysis_mode: bool = True
         self.in_flight: bool = False

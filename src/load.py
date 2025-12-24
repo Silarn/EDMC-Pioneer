@@ -268,7 +268,7 @@ def plugin_prefs(parent: ttk.Notebook, cmdr: str, is_beta: bool) -> nb.Frame:
         frame,
         text='Show mapped body count',
         variable=this.show_map_counter
-    ).grid(row=31, columnspan=3, padx=x_button_padding, sticky=tk.W)
+    ).grid(row=32, columnspan=3, padx=x_button_padding, sticky=tk.W)
 
     # Overlay settings
     ttk.Separator(frame).grid(row=35, columnspan=3, pady=y_padding * 2, sticky=tk.EW)
@@ -410,6 +410,7 @@ def edsm_end(event: tk.Event) -> None:
 def calc_system_value() -> tuple[int, int, int, int]:
     global efficiency_bonus
 
+    this.overlay_local_text = ''
     have_belts = this.belt_count == this.belts_found
     if not this.main_star_name and not len(this.bodies):
         this.values_label['text'] = 'No scans detected.\nHonk or check nav beacon data.'
@@ -423,7 +424,7 @@ def calc_system_value() -> tuple[int, int, int, int]:
     for body_name, body_data in sorted(this.bodies.items(), key=lambda item: item[1].get_id()):
         is_range = this.body_values[body_name].get_mapped_values()[1] != \
                    this.body_values[body_name].get_mapped_values()[0]
-        bodies_text += '{} - {}{}{}{}{}{}{}:'.format(
+        body_text = '{} - {}{}{}{}{}{}{}:'.format(
             body_name,
             body_data.get_type() if type(body_data) is PlanetData else
             get_star_label(body_data.get_type(),
@@ -448,11 +449,11 @@ def calc_system_value() -> tuple[int, int, int, int]:
                 '{}'.format(this.formatter.format_credits(
                     this.body_values[body_name].get_mapped_values()[0] * efficiency
                 ))
-            bodies_text += 'Current Value (Max): {}\n'.format(val_text)
+            body_text += 'Current Value (Max): {}\n'.format(val_text)
             if body_data.was_efficient(this.commander.id):
-                bodies_text += '  (Efficient)\n'
+                body_text += '  (Efficient)\n'
             if this.show_carrier_values.get():
-                bodies_text += 'Carrier Value: {}{} ({} -> carrier)\n'.format(
+                body_text += 'Carrier Value: {}{} ({} -> carrier)\n'.format(
                     'Up to ' if is_range else '',
                     this.formatter.format_credits(
                         int(this.body_values[body_name].get_mapped_values()[0] * efficiency * .75)),
@@ -481,14 +482,14 @@ def calc_system_value() -> tuple[int, int, int, int]:
             ) if is_range else '{}'.format(
                 this.formatter.format_credits(max_mapped_value)
             )
-            bodies_text += 'Current Value: {}\n'.format(val_text)
+            body_text += 'Current Value: {}\n'.format(val_text)
             if this.show_carrier_values.get():
-                bodies_text += 'Carrier Value: {}{} ({} -> carrier)\n'.format(
+                body_text += 'Carrier Value: {}{} ({} -> carrier)\n'.format(
                     'Up to ' if is_range else '',
                     this.formatter.format_credits(int(max_value * .75)),
                     this.formatter.format_credits(int(max_value * .125))
                 )
-            bodies_text += 'Max Value: {}\n'.format(max_val_text)
+            body_text += 'Max Value: {}\n'.format(max_val_text)
             max_value_sum += max_mapped_value
             min_max_value_sum += min_mapped_value
             value_sum += max_value
@@ -506,9 +507,9 @@ def calc_system_value() -> tuple[int, int, int, int]:
             ) if is_range else '{}'.format(
                 this.formatter.format_credits(max_value)
             )
-            bodies_text += 'Current Value (Max): {}\n'.format(val_text)
+            body_text += 'Current Value (Max): {}\n'.format(val_text)
             if this.show_carrier_values.get():
-                bodies_text += 'Carrier Value: {}{} ({} -> carrier)\n'.format(
+                body_text += 'Carrier Value: {}{} ({} -> carrier)\n'.format(
                     'Up to ' if is_range else '',
                     this.formatter.format_credits(int(max_value * .75)),
                     this.formatter.format_credits(int(max_value * .125))
@@ -525,11 +526,11 @@ def calc_system_value() -> tuple[int, int, int, int]:
                 and body_data.is_discovered(this.commander.id)) else 0
         if get_system_status().honked:
             if max_honk_value != min_honk_value:
-                bodies_text += 'Honk Value: {} - {}'.format(
+                body_text += 'Honk Value: {} - {}'.format(
                     this.formatter.format_credits(min_honk_value),
                     this.formatter.format_credits(max_honk_value)) + '\n'
             else:
-                bodies_text += 'Honk Value: {}'.format(
+                body_text += 'Honk Value: {}'.format(
                     this.formatter.format_credits(max_honk_value)
                 ) + '\n'
             value_sum += max_honk_value if this.main_star_value else 0
@@ -538,9 +539,12 @@ def calc_system_value() -> tuple[int, int, int, int]:
             min_honk_sum += min_honk_value
         max_value_sum += max_honk_value if this.main_star_value else 0
         min_max_value_sum += min_honk_value if this.main_star_value else 0
+        if body_data.get_name() == this.current_body_name:
+            this.overlay_local_text += '\n' + body_text
+        bodies_text += body_text
         bodies_text += '------------------' + '\n'
     if this.main_star_name:
-        this.values_label['text'] = '{}:\n   {}\n   {} + {} = {}\n'.format(
+        star_text = '{}:\n   {}\n   {} + {} = {}\n'.format(
             this.main_star_name,
             this.main_star_type,
             this.formatter.format_credits(this.main_star_value),
@@ -555,11 +559,13 @@ def calc_system_value() -> tuple[int, int, int, int]:
             ))
         if this.show_carrier_values.get():
             is_range = honk_sum != min_honk_sum
-            this.values_label['text'] += '   Carrier: {}{} ({} -> carrier)\n'.format(
+            star_text += '   Carrier: {}{} ({} -> carrier)\n'.format(
                 'Up to ' if is_range else '',
                 this.formatter.format_credits(int((this.main_star_value + honk_sum) * .75)),
                 this.formatter.format_credits(int((this.main_star_value + honk_sum) * .125))
             )
+        this.values_label['text'] = star_text
+        this.overlay_local_text = star_text + this.overlay_local_text
     else:
         this.values_label['text'] = 'No main star info\nCheck for nav beacon data\n'
     this.values_label['text'] += '------------------' + '\n'
@@ -750,9 +756,15 @@ def process_data_event(entry: Mapping[str, Any]) -> None:
     calc_counts()
 
 
-def dashboard_entry(cmdr: str, is_beta: bool, entry: dict[str, any]) -> str:
+def dashboard_entry(cmdr: str, is_beta: bool, entry: dict[str, Any]) -> str:
     status = StatusFlags(entry['Flags'])
     update = False
+
+    body_name = get_body_name(entry.get('BodyName', ''))
+    body_name = body_name if body_name else get_body_name(entry.get('Destination', {'Name': ''})['Name'])
+    if body_name != this.current_body_name:
+        this.current_body_name = body_name
+        update = True
 
     if this.analysis_mode != (StatusFlags.IS_ANALYSIS_MODE in status):
         this.analysis_mode = (StatusFlags.IS_ANALYSIS_MODE in status)
@@ -1070,7 +1082,7 @@ def update_display() -> None:
     if this.use_overlay.get() and this.overlay.available():
         if overlay_should_display():
             if this.label['text']:
-                overlay_text = this.label['text'] + "\n \n" + this.total_label['text']
+                overlay_text = this.label['text'] + ('\n\n' + this.overlay_local_text if this.overlay_local_text else '') + '\n' + this.total_label['text']
                 this.overlay.display("pioneer_text", overlay_text,
                                      x=this.overlay_anchor_x.get(), y=this.overlay_anchor_y.get(),
                                      color=this.overlay_color.get())
