@@ -17,16 +17,22 @@ It factors in the bonus on Odyssey / 4.0+ clients.
 ### Display
 Pioneer will display a number of things. As you progress a few indicators will appear at the top. A honked system will
 add a `🌐` tag. Fully scanned systems will add a `🔍` and if none of the bodies had been previously scanned it will
-display `🔍🌟`. Similarly, a fully mapped system will display `🗺` or `🗺️🌟`.
+display `🔍🌟`. Similarly, a fully mapped system will display `🗺️` or `🗺️🌟`.
+
+Under certain circumstances, there may be additional markers. For pre-explored / colonized 'bubble' systems,
+a `🌇` tag will be added. These systems calculate values a little differently as they provide a discovery bonus
+for mapped bodies, but generally no extra mapped bonus. For any bodies scanned via a nav beacon, a `🧭` tag will
+be shown. These bodies will have registered scan details but will not provide scan data to sell.
 
 Based on a configurable value, the top of the pane will display high value mappable bodies. These will be marked when
-terraformable `🌳`, previously scanned `❕🔍`, and previously mapped `❕🗺`. It can also display any bodies with
+terraformable `🌳`, previously scanned `❕🔍`, and previously mapped `❕🗺️`. It can also display any bodies with
 biological signals. Following this is an optional scrollbox with a detailed breakdown of every system body.
 
 At the top is an estimate of the main star value including the honk bonus provided by all other bodies.
 This is followed by a list of scanned bodies, their calculated current and maximum values, and the honk
-bonus they provide. At the bottom of the list, it will include any additional bonuses for being the first to fully map
-or scan the system.
+bonus they provide. This detail pane will also display indicators. It will indicate footfall `🦶`, scan `🔍`,
+and map `🗺️` status, with an extra `❕` if previously done. At the bottom of the list, it will include any
+additional bonuses for being the first to fully map or scan the system.
 
 Finally, the overall current (based on scan and map status) and maximum (if fully mapped) values are
 displayed at the bottom of the pane.
@@ -42,6 +48,9 @@ As of version 2.1.0, Pioneer now supports an in-game overlay by means of EDMCOve
 and install the prerequisite plugin to make use of this feature.
 
 The text color and anchor point for the display are configurable.
+
+From version 2.3.0, the overlay will now show detailed info for the main star and either your current location
+(approaching a landable planet) or your current target body.
 
 ## EDSM Parsing
 Once per system, data can be parsed from EDSM as an alternative to getting the data in-game. This may save time for
