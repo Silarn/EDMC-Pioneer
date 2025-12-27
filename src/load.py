@@ -3,6 +3,7 @@
 # Source: https://github.com/Silarn/EDMC-Pioneer
 # Inspired by Economical Cartographics: https://github.com/n-st/EDMC-EconomicalCartographics
 # Licensed under the [GNU Public License (GPL)](http://www.gnu.org/licenses/gpl-2.0.html) version 2 or later.
+import logging
 import os
 import re
 from datetime import datetime
@@ -68,7 +69,7 @@ def plugin_start3(plugin_dir: str) -> str:
         if not this.db_mismatch:
             register_event_callbacks(
                 {'Scan', 'FSSDiscoveryScan', 'FSSAllBodiesFound', 'SAAScanComplete', 'SellExplorationData',
-                 'MultiSellExplorationData'},
+                 'MultiSellExplorationData', 'Died', 'Resurrect'},
                 process_data_event
             )
     return this.NAME
@@ -623,7 +624,6 @@ def get_system_value(system: System) -> tuple[int, int]:
 
     system_was_scanned = False
     system_was_mapped = False
-    system_has_undiscovered = False
     map_count = 0
     body_data: PlanetData | StarData
     for body in bodies:
@@ -634,8 +634,6 @@ def get_system_value(system: System) -> tuple[int, int]:
 
         if body_data.was_discovered(this.commander.id):
             system_was_scanned = True
-        else:
-            system_has_undiscovered = True
 
         body_values = calculate_body_values(body_data)
         if type(body_data) is PlanetData and body_data.is_mapped(this.commander.id):
@@ -679,7 +677,7 @@ def get_system_value(system: System) -> tuple[int, int]:
             honk_sum += max_honk_value
             min_honk_sum += min_honk_value
 
-    if not system_was_scanned and not system_has_undiscovered:
+    if not system_was_scanned:
         total_bodies = len(system.non_bodies) + system.body_count
         if system_status.fully_scanned and have_belts:
             value_sum += total_bodies * 1000
@@ -741,13 +739,15 @@ def journal_entry(cmdr: str, is_beta: bool, system: str, station: str,
         return ''
 
     if cmdr and (not this.commander or this.commander.name != cmdr):
-        stmt = select(Commander).where(Commander.name == cmdr)
-        result = this.sql_session.scalars(stmt)
-        this.commander = result.first()
-        if not this.commander:
-            this.commander = Commander(name=cmdr)
+        commander = this.sql_session.scalar(select(Commander).where(Commander.name == cmdr))
+        if not commander:
+            commander = Commander(name=cmdr)
             this.sql_session.add(this.commander)
             this.sql_session.commit()
+        this.commander = commander
+        this.recalculate_unsold = True
+        this.unsold_systems = {}
+        reset()
 
     if system and (not this.system or system != this.system.name):
         reset()
@@ -826,14 +826,14 @@ def process_data_event(entry: Mapping[str, Any]) -> None:
             process_body_values(body)
             process_belts()
             process_discovery()
-            this.unsold_systems.pop(this.system.id, None)
+            if body and body.get_scan_state(this.commander.id) > 1:
+                this.unsold_systems[this.system.id] = True
             update_display()
 
         case 'FSSDiscoveryScan':
             if entry['Progress'] == 1.0 and not get_system_status().fully_scanned:
                 get_system_status().fully_scanned = True
                 this.sql_session.commit()
-            this.unsold_systems.pop(this.system.id, None)
             update_display()
 
         case 'FSSAllBodiesFound':
@@ -850,7 +850,6 @@ def process_data_event(entry: Mapping[str, Any]) -> None:
             else:
                 this.bodies[body_short_name] = PlanetData.from_journal(this.system, body_short_name,
                                                                        entry['BodyID'], this.sql_session)
-            this.unsold_systems.pop(this.system.id, None)
             update_display()
 
         case 'SellExplorationData':
@@ -866,6 +865,9 @@ def process_data_event(entry: Mapping[str, Any]) -> None:
                 this.unsold_systems[system.id] = (0, 0)
             update_display()
 
+        case 'Died' | 'Resurrect':
+            this.recalculate_unsold = True
+            update_display()
 
     calc_counts()
 
@@ -1049,78 +1051,88 @@ def get_system_status() -> SystemStatus | None:
 
 def get_unsold_data() -> str:
     unsold_text = ''
-    last_death: Death = this.sql_session.scalar(select(Death).where(Death.commander_id == this.commander.id)
-                                                .where(Death.in_ship == True).order_by(desc(Death.died_at)))
-    last_resurrect: Resurrection = this.sql_session.scalar(select(Resurrection).where(Resurrection.commander_id == this.commander.id)
-                                                           .where(Resurrection.type.not_in(['escape', 'rejoin', 'handin', 'recover']))
-                                                           .order_by(desc(Resurrection.resurrected_at)))
+    if this.recalculate_unsold:
+        last_death: Death = this.sql_session.scalar(select(Death).where(Death.commander_id == this.commander.id)
+                                                    .where(Death.in_ship == True).order_by(desc(Death.died_at)))
+        last_resurrect: Resurrection = this.sql_session.scalar(select(Resurrection).where(Resurrection.commander_id == this.commander.id)
+                                                               .where(Resurrection.type.not_in(['escape', 'rejoin', 'handin', 'recover']))
+                                                               .order_by(desc(Resurrection.resurrected_at)))
+        recent_sales: list[SystemSale] = this.sql_session.scalars(
+            select(SystemSale).where(SystemSale.commander_id == this.commander.id).order_by(desc(SystemSale.sold_at)).limit(5)
+        ).all()
+        data_cutoff_time = recent_sales[-1].sold_at if len(recent_sales) == 5 else datetime.min
 
-    last_data_loss: datetime | None = None
-    if last_death or last_resurrect:
-        last_death_time: datetime = last_death.died_at if last_death else None
-        last_resurrect_time: datetime = last_resurrect.resurrected_at if last_resurrect else None
-        last_data_loss = last_death_time if last_death_time else last_resurrect_time
+        last_data_loss: datetime | None = None
+        if last_death or last_resurrect:
+            last_death_time: datetime = last_death.died_at if last_death else None
+            last_resurrect_time: datetime = last_resurrect.resurrected_at if last_resurrect else None
+            last_data_loss = last_death_time if last_death_time > last_resurrect_time else last_resurrect_time
+        if last_data_loss:
+            if data_cutoff_time > datetime.min:
+                data_cutoff_time = last_data_loss if last_data_loss > data_cutoff_time else data_cutoff_time
+            else:
+                data_cutoff_time = last_data_loss
 
-    data_cutoff_time: datetime | None = None
-    if last_data_loss:
-        if data_cutoff_time:
-            data_cutoff_time = last_data_loss if last_data_loss > data_cutoff_time else data_cutoff_time
-        else:
-            data_cutoff_time = last_data_loss
+        logger.debug(f'Cutoff time: {data_cutoff_time}')
 
-    planet_scans: list[PlanetStatus] = this.sql_session.scalars(select(PlanetStatus)
-                                                                .where(PlanetStatus.commander_id == this.commander.id)
-                                                                .where(PlanetStatus.scan_state >= 2)
-                                                                .where(PlanetStatus.scanned_at > data_cutoff_time)).all()
+        planet_scans: list[PlanetStatus] = this.sql_session.scalars(select(PlanetStatus)
+                                                                    .where(PlanetStatus.commander_id == this.commander.id)
+                                                                    .where(PlanetStatus.scan_state >= 2)
+                                                                    .where(PlanetStatus.scanned_at > data_cutoff_time)).all()
 
-    star_scans: list[StarStatus] = this.sql_session.scalars(select(StarStatus)
-                                                            .where(StarStatus.commander_id == this.commander.id)
-                                                            .where(StarStatus.scan_state >= 2)
-                                                            .where(StarStatus.scanned_at > data_cutoff_time)).all()
+        star_scans: list[StarStatus] = this.sql_session.scalars(select(StarStatus)
+                                                                .where(StarStatus.commander_id == this.commander.id)
+                                                                .where(StarStatus.scan_state >= 2)
+                                                                .where(StarStatus.scanned_at > data_cutoff_time)).all()
 
-    systems: set[int] = set()
+        systems: set[int] = set()
 
-    for planet_status in planet_scans:
-        planet_data = this.sql_session.scalar(select(Planet).where(Planet.id == planet_status.planet_id))
-        if planet_data.system_id not in this.unsold_systems:
-            systems.add(planet_data.system_id)
+        for planet_status in planet_scans:
+            planet_data = this.sql_session.scalar(select(Planet).where(Planet.id == planet_status.planet_id))
+            if planet_data.system_id not in this.unsold_systems:
+                systems.add(planet_data.system_id)
 
-    for star_status in star_scans:
-        star_data = this.sql_session.scalar(select(Star).where(Star.id == star_status.star_id))
-        if star_data.system_id not in this.unsold_systems:
-            systems.add(star_data.system_id)
+        for star_status in star_scans:
+            star_data = this.sql_session.scalar(select(Star).where(Star.id == star_status.star_id))
+            if star_data.system_id not in this.unsold_systems:
+                systems.add(star_data.system_id)
+        if len(systems) > 0:
+            for system_id in systems:
+                system = this.sql_session.scalar(select(System).where(System.id == system_id))
+                data_sales = this.sql_session.scalar(select(SystemSale).where(SystemSale.commander_id == this.commander.id)
+                                                     .where(SystemSale.systems.like(f'%{system.name}%')))
+                if not data_sales:
+                    this.unsold_systems[system_id] = get_system_value(system)
+                else:
+                    this.unsold_systems[system_id] = (0, 0)
+        this.recalculate_unsold = False
+
+    if this.system.id in this.unsold_systems and this.unsold_systems[this.system.id] is True:
+        this.unsold_systems[this.system.id] = get_system_value(this.system)
 
     total_value_sum = 0
     min_total_value_sum = 0
-    if len(systems) > 0:
-        for system_id in systems:
-            system = this.sql_session.scalar(select(System).where(System.id == system_id))
-            data_sales = this.sql_session.scalar(select(SystemSale).where(SystemSale.commander_id == this.commander.id)
-                                                 .where(SystemSale.systems.like(f'%{system.name}%')))
-            if not data_sales:
-                this.unsold_systems[system_id] = get_system_value(system)
-            else:
-                this.unsold_systems[system_id] = (0, 0)
 
     for system_id, values in this.unsold_systems.items():
         total_value, min_total_value = values
         total_value_sum += total_value
         min_total_value_sum += min_total_value
 
-    if total_value_sum != min_total_value_sum:
-        unsold_text = 'Unsold System Value: {} to {}'.format(
-            this.formatter.format_credits(min_total_value_sum), this.formatter.format_credits(total_value_sum))
-        if this.show_carrier_values.get():
-            unsold_text += '\nCarrier Value: Up to {} (+{} -> carrier)'.format(
-                this.formatter.format_credits(int(total_value_sum * .75)),
-                this.formatter.format_credits(int(total_value_sum * .125)))
-    else:
-        unsold_text = 'Unsold System Value: {}'.format(
-            this.formatter.format_credits(total_value_sum) if total_value_sum > 0 else 'N/A')
-        if this.show_carrier_values.get() and total_value_sum > 0:
-            unsold_text += '\nCarrier Value: {} (+{} -> carrier)'.format(
-                this.formatter.format_credits(int(total_value_sum * .75)),
-                this.formatter.format_credits(int(total_value_sum * .125)))
+    if total_value_sum > 0:
+        if total_value_sum != min_total_value_sum:
+            unsold_text = 'Unsold System Value: {} to {}'.format(
+                this.formatter.format_credits(min_total_value_sum), this.formatter.format_credits(total_value_sum))
+            if this.show_carrier_values.get():
+                unsold_text += '\nCarrier Value: Up to {} (+{} -> carrier)'.format(
+                    this.formatter.format_credits(int(total_value_sum * .75)),
+                    this.formatter.format_credits(int(total_value_sum * .125)))
+        else:
+            unsold_text = 'Unsold System Value: {}'.format(
+                this.formatter.format_credits(total_value_sum) if total_value_sum > 0 else 'N/A')
+            if this.show_carrier_values.get() and total_value_sum > 0:
+                unsold_text += '\nCarrier Value: {} (+{} -> carrier)'.format(
+                    this.formatter.format_credits(int(total_value_sum * .75)),
+                    this.formatter.format_credits(int(total_value_sum * .125)))
 
     return unsold_text
 

@@ -65,7 +65,8 @@ class Globals:
         self.bodies: dict[str, PlanetData | StarData] = {}
         self.non_bodies: dict[str, NonBodyData] = {}
         self.body_values: dict[str, BodyValueData] = {}
-        self.unsold_systems: dict[int, tuple[int, int]] = {}
+        self.unsold_systems: dict[int, tuple[int, int] | bool] = {}
+        self.recalculate_unsold: bool = True
         self.scans = set()
         self.main_star_value: int = 0
         self.main_star_name = ''
