@@ -5,6 +5,7 @@
 # Licensed under the [GNU Public License (GPL)](http://www.gnu.org/licenses/gpl-2.0.html) version 2 or later.
 import os
 import re
+from datetime import datetime
 
 import requests
 import semantic_version
@@ -16,7 +17,7 @@ import tkinter as tk
 from tkinter import ttk, colorchooser as tkColorChooser, Widget as tkWidget
 
 from ttkHyperlinkLabel import HyperlinkLabel
-from sqlalchemy import select
+from sqlalchemy import select, desc
 from sqlalchemy.orm import Session
 
 import myNotebook as nb
@@ -27,7 +28,8 @@ from EDMCLogging import get_plugin_logger
 
 import ExploData
 from ExploData.explo_data import db
-from ExploData.explo_data.db import System, Commander, SystemStatus, Metadata, StarRing
+from ExploData.explo_data.db import System, Commander, SystemStatus, Metadata, StarRing, Death, Resurrection, \
+    SystemSale, PlanetStatus, StarStatus, Planet, Star
 from ExploData.explo_data.RegionMap import findRegion
 from ExploData.explo_data.body_data.struct import PlanetData, StarData, load_planets, load_stars, get_main_star, \
     NonBodyData, load_non_bodies
@@ -65,7 +67,8 @@ def plugin_start3(plugin_dir: str) -> str:
 
         if not this.db_mismatch:
             register_event_callbacks(
-                {'Scan', 'FSSDiscoveryScan', 'FSSAllBodiesFound', 'SAAScanComplete'},
+                {'Scan', 'FSSDiscoveryScan', 'FSSAllBodiesFound', 'SAAScanComplete', 'SellExplorationData',
+                 'MultiSellExplorationData'},
                 process_data_event
             )
     return this.NAME
@@ -598,6 +601,96 @@ def calc_system_value() -> tuple[int, int, int, int]:
     return value_sum, min_value_sum, max_value_sum, min_max_value_sum
 
 
+def get_system_value(system: System) -> tuple[int, int]:
+    global efficiency_bonus
+
+    system_status = this.sql_session.scalar(select(SystemStatus).where(SystemStatus.system_id == system.id)
+                                            .where(SystemStatus.commander_id == this.commander.id))
+
+    if not system_status:
+        return 0, 0
+
+    have_belts = False
+    for star in system.stars:
+        for ring in star.rings:
+            if ring.name.endswith('Belt'):
+                have_belts = True
+    value_sum = 0
+    min_value_sum = 0
+    honk_sum, min_honk_sum = 0, 0
+    main_star_scanned = False
+    bodies = system.stars + system.planets
+
+    system_was_scanned = False
+    system_was_mapped = False
+    system_has_undiscovered = False
+    map_count = 0
+    body_data: PlanetData | StarData
+    for body in bodies:
+        if isinstance(body, Planet):
+            body_data = PlanetData.from_journal(system, body.name, body.body_id, this.sql_session)
+        else:
+            body_data = StarData.from_journal(system, body.name, body.body_id, this.sql_session)
+
+        if body_data.was_discovered(this.commander.id):
+            system_was_scanned = True
+        else:
+            system_has_undiscovered = True
+
+        body_values = calculate_body_values(body_data)
+        if type(body_data) is PlanetData and body_data.is_mapped(this.commander.id):
+            if body_data.was_mapped(this.commander.id):
+                system_was_mapped = True
+            map_count += 1
+            efficiency = efficiency_bonus if body_data.was_efficient(this.commander.id) else 1
+            value_sum += body_values.get_mapped_values()[0] * efficiency
+            min_value_sum += body_values.get_mapped_values()[1] * efficiency
+        elif type(body_data) is PlanetData:
+            if body_data.was_mapped(this.commander.id):
+                system_was_mapped = True
+            min_value = body_values.get_base_values()[1] \
+                if (body_data.get_scan_state(this.commander.id) > 1 and
+                    body_data.is_discovered(this.commander.id)) else 0
+            max_value = body_values.get_base_values()[0] \
+                if (body_data.get_scan_state(this.commander.id) > 1 and
+                    body_data.is_discovered(this.commander.id)) else 0
+            value_sum += max_value
+            min_value_sum += min_value
+        else:
+            if body_data.get_distance() == 0 and body_data.get_scan_state(this.commander.id) > 1:
+                main_star_scanned = True
+            min_value = body_values.get_base_values()[1] \
+                if (body_data.get_scan_state(this.commander.id) > 1
+                    and body_data.is_discovered(this.commander.id)) else 0
+            max_value = body_values.get_base_values()[0] \
+                if (body_data.get_scan_state(this.commander.id) > 1
+                    and body_data.is_discovered(this.commander.id)) else 0
+            value_sum += max_value
+            min_value_sum += min_value
+        min_honk_value = body_values.get_honk_values()[1] \
+            if (body_data.get_scan_state(this.commander.id) > 1
+                and body_data.is_discovered(this.commander.id)) else 0
+        max_honk_value = body_values.get_honk_values()[0] \
+            if (body_data.get_scan_state(this.commander.id) > 1
+                and body_data.is_discovered(this.commander.id)) else 0
+        if system_status.honked:
+            value_sum += max_honk_value if main_star_scanned else 0
+            min_value_sum += min_honk_value if main_star_scanned else 0
+            honk_sum += max_honk_value
+            min_honk_sum += min_honk_value
+
+    if not system_was_scanned and not system_has_undiscovered:
+        total_bodies = len(system.non_bodies) + system.body_count
+        if system_status.fully_scanned and have_belts:
+            value_sum += total_bodies * 1000
+            min_value_sum += total_bodies * 1000
+    if not system_was_mapped and len(system.planets) > 0:
+        if system_status.fully_scanned and len(system.planets) == map_count:
+            value_sum += len(system.planets) * 10000
+            min_value_sum += len(system.planets) * 10000
+    return value_sum, min_value_sum
+
+
 def get_body_name(fullname: str = '') -> str:
     if fullname.startswith(this.system.name + ' '):
         body_name = fullname[len(this.system.name + ' '):]
@@ -673,10 +766,20 @@ def journal_entry(cmdr: str, is_beta: bool, system: str, station: str,
     if not this.system or not this.commander:
         return ''
 
-    if entry['event'] == 'StartJump':
-        if entry['JumpType'] == 'Hyperspace':
-            reset()
-            update_display()
+    match entry['event']:
+        case 'StartJump':
+            if entry['JumpType'] == 'Hyperspace':
+                reset()
+                update_display()
+        case 'Disembark':
+            if entry.get('OnPlanet', False):
+                body_short_name = get_body_name(entry['BodyName'])
+                if body_short_name in this.bodies:
+                    this.bodies[body_short_name].refresh()
+                else:
+                    this.bodies[body_short_name] = PlanetData.from_journal(this.system, body_short_name,
+                                                                           entry['BodyID'], this.sql_session)
+                update_display()
 
     this.sql_session.commit()
 
@@ -723,15 +826,20 @@ def process_data_event(entry: Mapping[str, Any]) -> None:
             process_body_values(body)
             process_belts()
             process_discovery()
+            this.unsold_systems.pop(this.system.id, None)
             update_display()
+
         case 'FSSDiscoveryScan':
             if entry['Progress'] == 1.0 and not get_system_status().fully_scanned:
                 get_system_status().fully_scanned = True
                 this.sql_session.commit()
+            this.unsold_systems.pop(this.system.id, None)
             update_display()
+
         case 'FSSAllBodiesFound':
             process_belts()
             update_display()
+
         case 'SAAScanComplete':
             body_short_name = get_body_name(entry['BodyName'])
             if body_short_name.endswith('Ring') or body_short_name.find('Belt Cluster') != -1:
@@ -742,16 +850,22 @@ def process_data_event(entry: Mapping[str, Any]) -> None:
             else:
                 this.bodies[body_short_name] = PlanetData.from_journal(this.system, body_short_name,
                                                                        entry['BodyID'], this.sql_session)
+            this.unsold_systems.pop(this.system.id, None)
             update_display()
-        case 'Disembark':
-            if entry.get('OnPlanet', False):
-                body_short_name = get_body_name(entry['BodyName'])
-                if body_short_name in this.bodies:
-                    this.bodies[body_short_name].refresh()
-                else:
-                    this.bodies[body_short_name] = PlanetData.from_journal(this.system, body_short_name,
-                                                                           entry['BodyID'], this.sql_session)
-                update_display()
+
+        case 'SellExplorationData':
+            systems: list[str] = entry['Systems']
+            for system_name in systems:
+                system = this.sql_session.scalar(select(System).where(System.name == system_name))
+                this.unsold_systems[system.id] = (0, 0)
+            update_display()
+
+        case 'MultiSellExplorationData':
+            for system_data in entry['Discovered']:
+                system = this.sql_session.scalar(select(System).where(System.name == system_data['SystemName']))
+                this.unsold_systems[system.id] = (0, 0)
+            update_display()
+
 
     calc_counts()
 
@@ -878,6 +992,42 @@ def process_body_values(body: PlanetData | StarData | None) -> None:
         this.bodies[body.get_name()] = body
 
 
+def calculate_body_values(body_data: PlanetData | StarData) -> BodyValueData:
+    # undiscovered = not body_data.is_discovered(this.commander.id) or body_data.get_scan_state(this.commander.id) < 2
+    unscanned = body_data.get_scan_state(this.commander.id) == 0
+    body_value = BodyValueData(body_data.get_name(), body_data.get_id())
+    if type(body_data) is StarData:
+        if body_data.get_type() == 'SupermassiveBlackHole':
+            value = 261790
+            honk_value = 0
+        else:
+            k = get_starclass_k(body_data.get_type())
+            value, honk_value = get_star_value(
+                k, body_data.get_mass(),
+                not body_data.was_discovered(this.commander.id) if not unscanned else False
+            )
+        body_value.set_base_values(value, value).set_mapped_values(value, value) \
+            .set_honk_values(honk_value, honk_value)
+
+    if type(body_data) is PlanetData:
+        odyssey_bonus = this.odyssey or this.game_version.major >= 4
+        odyssey_bonus = False if not body_data.was_discovered(this.commander.id) and body_data.was_mapped(this.commander.id) \
+            else odyssey_bonus
+        k, kt, tm = get_planetclass_k(body_data.get_type(), body_data.is_terraformable())
+        value, mapped_value, honk_value, \
+            min_value, min_mapped_value, min_honk_value = \
+            get_body_value(
+                k, kt, tm, body_data.get_mass(),
+                not body_data.was_discovered(this.commander.id) if not unscanned else False,
+                not body_data.was_mapped(this.commander.id) if not unscanned else False,
+                odyssey_bonus)
+
+        body_value.set_base_values(value, min_value).set_honk_values(honk_value, min_honk_value)
+        body_value.set_mapped_values(int(mapped_value), int(min_mapped_value))
+
+    return body_value
+
+
 def get_system_status() -> SystemStatus | None:
     if not this.system:
         this.system_status = None
@@ -895,6 +1045,84 @@ def get_system_status() -> SystemStatus | None:
             this.system.statuses.append(this.system_status)
             this.sql_session.commit()
     return this.system_status
+
+
+def get_unsold_data() -> str:
+    unsold_text = ''
+    last_death: Death = this.sql_session.scalar(select(Death).where(Death.commander_id == this.commander.id)
+                                                .where(Death.in_ship == True).order_by(desc(Death.died_at)))
+    last_resurrect: Resurrection = this.sql_session.scalar(select(Resurrection).where(Resurrection.commander_id == this.commander.id)
+                                                           .where(Resurrection.type.not_in(['escape', 'rejoin', 'handin', 'recover']))
+                                                           .order_by(desc(Resurrection.resurrected_at)))
+
+    last_data_loss: datetime | None = None
+    if last_death or last_resurrect:
+        last_death_time: datetime = last_death.died_at if last_death else None
+        last_resurrect_time: datetime = last_resurrect.resurrected_at if last_resurrect else None
+        last_data_loss = last_death_time if last_death_time else last_resurrect_time
+
+    data_cutoff_time: datetime | None = None
+    if last_data_loss:
+        if data_cutoff_time:
+            data_cutoff_time = last_data_loss if last_data_loss > data_cutoff_time else data_cutoff_time
+        else:
+            data_cutoff_time = last_data_loss
+
+    planet_scans: list[PlanetStatus] = this.sql_session.scalars(select(PlanetStatus)
+                                                                .where(PlanetStatus.commander_id == this.commander.id)
+                                                                .where(PlanetStatus.scan_state >= 2)
+                                                                .where(PlanetStatus.scanned_at > data_cutoff_time)).all()
+
+    star_scans: list[StarStatus] = this.sql_session.scalars(select(StarStatus)
+                                                            .where(StarStatus.commander_id == this.commander.id)
+                                                            .where(StarStatus.scan_state >= 2)
+                                                            .where(StarStatus.scanned_at > data_cutoff_time)).all()
+
+    systems: set[int] = set()
+
+    for planet_status in planet_scans:
+        planet_data = this.sql_session.scalar(select(Planet).where(Planet.id == planet_status.planet_id))
+        if planet_data.system_id not in this.unsold_systems:
+            systems.add(planet_data.system_id)
+
+    for star_status in star_scans:
+        star_data = this.sql_session.scalar(select(Star).where(Star.id == star_status.star_id))
+        if star_data.system_id not in this.unsold_systems:
+            systems.add(star_data.system_id)
+
+    total_value_sum = 0
+    min_total_value_sum = 0
+    if len(systems) > 0:
+        for system_id in systems:
+            system = this.sql_session.scalar(select(System).where(System.id == system_id))
+            data_sales = this.sql_session.scalar(select(SystemSale).where(SystemSale.commander_id == this.commander.id)
+                                                 .where(SystemSale.systems.like(f'%{system.name}%')))
+            if not data_sales:
+                this.unsold_systems[system_id] = get_system_value(system)
+            else:
+                this.unsold_systems[system_id] = (0, 0)
+
+    for system_id, values in this.unsold_systems.items():
+        total_value, min_total_value = values
+        total_value_sum += total_value
+        min_total_value_sum += min_total_value
+
+    if total_value_sum != min_total_value_sum:
+        unsold_text = 'Unsold System Value: {} to {}'.format(
+            this.formatter.format_credits(min_total_value_sum), this.formatter.format_credits(total_value_sum))
+        if this.show_carrier_values.get():
+            unsold_text += '\nCarrier Value: Up to {} (+{} -> carrier)'.format(
+                this.formatter.format_credits(int(total_value_sum * .75)),
+                this.formatter.format_credits(int(total_value_sum * .125)))
+    else:
+        unsold_text = 'Unsold System Value: {}'.format(
+            this.formatter.format_credits(total_value_sum) if total_value_sum > 0 else 'N/A')
+        if this.show_carrier_values.get() and total_value_sum > 0:
+            unsold_text += '\nCarrier Value: {} (+{} -> carrier)'.format(
+                this.formatter.format_credits(int(total_value_sum * .75)),
+                this.formatter.format_credits(int(total_value_sum * .125)))
+
+    return unsold_text
 
 
 def process_belts() -> None:
@@ -1043,7 +1271,16 @@ def update_display() -> None:
             text += '\n'
 
         body_count = this.system.body_count if system_status.honked else '?'
-        text += f'B#: {len(this.bodies) + 1}/{body_count} NB#: {this.system.non_body_count}'
+        scanned_bodies = 0
+        for body in this.bodies.values():
+            if body.get_scan_state(this.commander.id) >= 1:
+                scanned_bodies += 1
+        main_star = get_main_star(this.system, this.sql_session)
+        if main_star:
+            main_star_data = StarData.from_journal(this.system, main_star.name, main_star.body_id, this.sql_session)
+            if main_star_data.get_scan_state(this.commander.id) >= 1:
+                scanned_bodies += 1
+        text += f'B#: {len(this.bodies) + 1}/{scanned_bodies}/{body_count} NB#: {this.system.non_body_count}'
         if this.belt_count:
             text += f' (Belts: {this.belts_found}/{this.belt_count})'
         if this.show_map_counter.get() and this.planet_count > 0 and this.map_count < this.planet_count:
@@ -1078,6 +1315,10 @@ def update_display() -> None:
             this.total_label['text'] += '\nCarrier Value: {} (+{} -> carrier)'.format(
                 this.formatter.format_credits(int(total_value * .75)),
                 this.formatter.format_credits(int(total_value * .125)))
+
+    unsold_text = get_unsold_data()
+    if unsold_text:
+        this.total_label['text'] += f'\n{unsold_text}'
 
     if this.use_overlay.get() and this.overlay.available():
         if overlay_should_display():
