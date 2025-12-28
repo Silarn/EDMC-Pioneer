@@ -18,7 +18,7 @@ import tkinter as tk
 from tkinter import ttk, colorchooser as tkColorChooser, Widget as tkWidget
 
 from ttkHyperlinkLabel import HyperlinkLabel
-from sqlalchemy import select, desc
+from sqlalchemy import select, desc, asc
 from sqlalchemy.orm import Session
 
 import myNotebook as nb
@@ -416,19 +416,87 @@ def calc_system_value() -> tuple[int, int, int, int]:
 
     this.overlay_local_text = ''
     have_belts = this.belt_count == this.belts_found
+    bodies_sold = 0
+    bodies_lost = 0
     if not this.main_star_name and not len(this.bodies):
         this.values_label['text'] = 'No scans detected.\nHonk or check nav beacon data.'
         return 0, 0, 0, 0
-    max_value_sum = this.main_star_value
-    min_max_value_sum = this.main_star_value
-    value_sum = this.main_star_value
-    min_value_sum = this.main_star_value
     honk_sum, min_honk_sum = 0, 0
     bodies_text = ''
+    sold: list[SystemSale] = this.sql_session.scalars(select(SystemSale).where(SystemSale.commander_id == this.commander.id)
+                                                      .where(SystemSale.systems.like(f'%{this.system.name}%'))).all()
+    main_star = get_main_star(this.system, this.sql_session)
+    main_star_lost = False
+    main_star_sold = False
+    if main_star:
+        main_star_status = this.sql_session.scalar(select(StarStatus).where(StarStatus.commander_id == this.commander.id)
+                                                   .where(StarStatus.star_id == main_star.id))
+        death = this.sql_session.scalar(select(Death).where(Death.commander_id == this.commander.id)
+                                         .where(Death.in_ship).where(Death.died_at > main_star_status.scanned_at)
+                                         .order_by(asc(Death.died_at)))
+        resurrection = this.sql_session.scalar(select(Resurrection).where(Resurrection.commander_id == this.commander.id)
+                                               .where(Resurrection.type.not_in(['escape', 'rejoin', 'handin', 'recover']))
+                                               .where(Resurrection.resurrected_at > main_star_status.scanned_at)
+                                               .order_by(asc(Resurrection.resurrected_at)))
+        lost_at = None
+        if death and resurrection:
+            lost_at = death.died_at if death.died_at < resurrection.resurrected_at else resurrection.resurrected_at
+        elif death:
+            lost_at = death.died_at
+        elif resurrection:
+            lost_at = resurrection.resurrected_at
+        for sale in sold:
+            if lost_at:
+                if main_star_status.scanned_at < sale.sold_at < lost_at:
+                    main_star_sold = True
+                    bodies_sold += 1
+                    break
+            if main_star_status.scanned_at < sale.sold_at:
+                main_star_sold = True
+                bodies_sold += 1
+                break
+        if lost_at and not main_star_sold:
+            main_star_lost = True
+            bodies_lost += 1
+    max_value_sum = this.main_star_value if not main_star_lost else 0
+    min_max_value_sum = this.main_star_value if not main_star_lost else 0
+    value_sum = this.main_star_value if not main_star_lost else 0
+    min_value_sum = this.main_star_value if not main_star_lost else 0
     for body_name, body_data in sorted(this.bodies.items(), key=lambda item: item[1].get_id()):
         is_range = this.body_values[body_name].get_mapped_values()[1] != \
                    this.body_values[body_name].get_mapped_values()[0]
-        body_text = '{} - {}{}{}{}{}{}{}:'.format(
+        scanned_at = body_data.scanned_at(this.commander.id)
+        lost = False
+        body_sold = False
+        death = this.sql_session.scalar(select(Death).where(Death.commander_id == this.commander.id)
+                                         .where(Death.in_ship).where(Death.died_at > scanned_at)
+                                         .order_by(asc(Death.died_at)))
+        resurrection = this.sql_session.scalar(select(Resurrection).where(Resurrection.commander_id == this.commander.id)
+                                               .where(Resurrection.type.not_in(['escape', 'rejoin', 'handin', 'recover']))
+                                               .where(Resurrection.resurrected_at > scanned_at)
+                                               .order_by(asc(Resurrection.resurrected_at)))
+        lost_at = None
+        if death and resurrection:
+            lost_at = death.died_at if death.died_at < resurrection.resurrected_at else resurrection.resurrected_at
+        elif death:
+            lost_at = death.died_at
+        elif resurrection:
+            lost_at = resurrection.resurrected_at
+        for sale in sold:
+            if lost_at:
+                if scanned_at < sale.sold_at < lost_at:
+                    body_sold = True
+                    bodies_sold += 1
+                    break
+            if scanned_at < sale.sold_at:
+                body_sold = True
+                bodies_sold += 1
+                break
+        if lost_at and not body_sold:
+            lost = True
+            bodies_lost += 1
+
+        body_text = '{} - {}{}{}{}{}{}{}{}{}:'.format(
             body_name,
             body_data.get_type() if type(body_data) is PlanetData else
             get_star_label(body_data.get_type(),
@@ -439,6 +507,8 @@ def calc_system_value() -> tuple[int, int, int, int]:
             ' \N{SUNSET OVER BUILDINGS}' if type(body_data) is PlanetData and not body_data.was_discovered(this.commander.id)
                               and body_data.was_mapped(this.commander.id) else '',
             ' \N{COMPASS}' if body_data.get_scan_state(this.commander.id) < 2 else '',
+            ' \N{COLLISION SYMBOL}' if lost else '',
+            ' \N{HEAVY DOLLAR SIGN}' if body_sold else '',
             ' \N{WHITE EXCLAMATION MARK ORNAMENT}\N{FOOT}' if type(body_data) is PlanetData and body_data.was_footfalled(this.commander.id) is True else
                 ' \N{FOOT}' if type(body_data) is PlanetData and  body_data.footfall(this.commander.id) else '',
             ' \N{WHITE EXCLAMATION MARK ORNAMENT}\N{LEFT-POINTING MAGNIFYING GLASS}' if body_data.was_discovered(this.commander.id) else '',
@@ -453,10 +523,10 @@ def calc_system_value() -> tuple[int, int, int, int]:
                 '{}'.format(this.formatter.format_credits(
                     this.body_values[body_name].get_mapped_values()[0] * efficiency
                 ))
-            body_text += 'Current Value (Max): {}\n'.format(val_text)
+            body_text += 'Current Value (Max): {}{}\n'.format(val_text, ' (Lost)' if lost else '')
             if body_data.was_efficient(this.commander.id):
                 body_text += '  (Efficient)\n'
-            if this.show_carrier_values.get():
+            if this.show_carrier_values.get() and not lost:
                 body_text += 'Carrier Value: {}{} ({} -> carrier)\n'.format(
                     'Up to ' if is_range else '',
                     this.formatter.format_credits(
@@ -464,10 +534,11 @@ def calc_system_value() -> tuple[int, int, int, int]:
                     this.formatter.format_credits(
                         int(this.body_values[body_name].get_mapped_values()[0] * efficiency * .125))
                 )
-            max_value_sum += this.body_values[body_name].get_mapped_values()[0] * efficiency
-            min_max_value_sum += this.body_values[body_name].get_mapped_values()[1] * efficiency
-            value_sum += this.body_values[body_name].get_mapped_values()[0] * efficiency
-            min_value_sum += this.body_values[body_name].get_mapped_values()[1] * efficiency
+            if not lost:
+                max_value_sum += this.body_values[body_name].get_mapped_values()[0] * efficiency
+                min_max_value_sum += this.body_values[body_name].get_mapped_values()[1] * efficiency
+                value_sum += this.body_values[body_name].get_mapped_values()[0] * efficiency
+                min_value_sum += this.body_values[body_name].get_mapped_values()[1] * efficiency
         elif type(body_data) is PlanetData:
             min_value = this.body_values[body_name].get_base_values()[1] \
                 if (body_data.get_scan_state(this.commander.id) > 1 and
@@ -486,18 +557,19 @@ def calc_system_value() -> tuple[int, int, int, int]:
             ) if is_range else '{}'.format(
                 this.formatter.format_credits(max_mapped_value)
             )
-            body_text += 'Current Value: {}\n'.format(val_text)
-            if this.show_carrier_values.get():
+            body_text += 'Current Value: {}{}\n'.format(val_text, ' (Lost)' if lost else '')
+            if this.show_carrier_values.get() and not lost:
                 body_text += 'Carrier Value: {}{} ({} -> carrier)\n'.format(
                     'Up to ' if is_range else '',
                     this.formatter.format_credits(int(max_value * .75)),
                     this.formatter.format_credits(int(max_value * .125))
                 )
             body_text += 'Max Value: {}\n'.format(max_val_text)
-            max_value_sum += max_mapped_value
-            min_max_value_sum += min_mapped_value
-            value_sum += max_value
-            min_value_sum += min_value
+            if not lost:
+                max_value_sum += max_mapped_value
+                min_max_value_sum += min_mapped_value
+                value_sum += max_value
+                min_value_sum += min_value
         else:
             min_value = this.body_values[body_name].get_base_values()[1] \
                 if (body_data.get_scan_state(this.commander.id) > 1
@@ -511,17 +583,18 @@ def calc_system_value() -> tuple[int, int, int, int]:
             ) if is_range else '{}'.format(
                 this.formatter.format_credits(max_value)
             )
-            body_text += 'Current Value (Max): {}\n'.format(val_text)
-            if this.show_carrier_values.get():
+            body_text += 'Current Value (Max): {}{}\n'.format(val_text, ' (Lost)' if lost else '')
+            if this.show_carrier_values.get() and not lost:
                 body_text += 'Carrier Value: {}{} ({} -> carrier)\n'.format(
                     'Up to ' if is_range else '',
                     this.formatter.format_credits(int(max_value * .75)),
                     this.formatter.format_credits(int(max_value * .125))
                 )
-            max_value_sum += max_value
-            min_max_value_sum += min_value
-            value_sum += max_value
-            min_value_sum += min_value
+            if not lost:
+                max_value_sum += max_value
+                min_max_value_sum += min_value
+                value_sum += max_value
+                min_value_sum += min_value
         min_honk_value = this.body_values[body_name].get_honk_values()[1] \
             if (body_data.get_scan_state(this.commander.id) > 1
                 and body_data.is_discovered(this.commander.id)) else 0
@@ -537,31 +610,36 @@ def calc_system_value() -> tuple[int, int, int, int]:
                 body_text += 'Honk Value: {}'.format(
                     this.formatter.format_credits(max_honk_value)
                 ) + '\n'
-            value_sum += max_honk_value if this.main_star_value else 0
-            min_value_sum += min_honk_value if this.main_star_value else 0
-            honk_sum += max_honk_value
-            min_honk_sum += min_honk_value
-        max_value_sum += max_honk_value if this.main_star_value else 0
-        min_max_value_sum += min_honk_value if this.main_star_value else 0
+            if not lost:
+                value_sum += max_honk_value if this.main_star_value else 0
+                min_value_sum += min_honk_value if this.main_star_value else 0
+                honk_sum += max_honk_value
+                min_honk_sum += min_honk_value
+        if not lost:
+            max_value_sum += max_honk_value if this.main_star_value else 0
+            min_max_value_sum += min_honk_value if this.main_star_value else 0
         if body_data.get_name() == this.current_body_name:
             this.overlay_local_text += '\n' + body_text
         bodies_text += body_text
         bodies_text += '------------------' + '\n'
     if this.main_star_name:
-        star_text = '{}:\n   {}\n   {} + {} = {}\n'.format(
+        star_text = '{}{}{}:\n   {}\n   {} + {} = {}\n'.format(
             this.main_star_name,
+            '\N{COLLISION SYMBOL}' if main_star_lost else '',
+            '\N{HEAVY DOLLAR SIGN}' if main_star_sold else '',
             this.main_star_type,
             this.formatter.format_credits(this.main_star_value),
-            this.formatter.format_credits(honk_sum) if honk_sum == min_honk_sum else '{} to {}'.format(
+            this.formatter.format_credits(honk_sum) if honk_sum == min_honk_sum else '{} to {}{}'.format(
                 this.formatter.format_credits(min_honk_sum),
-                this.formatter.format_credits(honk_sum)
+                this.formatter.format_credits(honk_sum),
+                ' (Lost)' if main_star_lost else ''
             ),
             (this.formatter.format_credits(
                 this.main_star_value + honk_sum)) if honk_sum == min_honk_sum else '{} to {}'.format(
                 this.formatter.format_credits(this.main_star_value + min_honk_sum),
                 this.formatter.format_credits(this.main_star_value + honk_sum)
             ))
-        if this.show_carrier_values.get():
+        if this.show_carrier_values.get() and not main_star_lost:
             is_range = honk_sum != min_honk_sum
             star_text += '   Carrier: {}{} ({} -> carrier)\n'.format(
                 'Up to ' if is_range else '',
@@ -575,7 +653,7 @@ def calc_system_value() -> tuple[int, int, int, int]:
     this.values_label['text'] += '------------------' + '\n'
     this.values_label['text'] += bodies_text
     status = get_system_status()
-    if not this.system_was_scanned and not this.is_nav_beacon and not this.system_has_undiscovered:
+    if not this.system_was_scanned and not this.is_nav_beacon and not this.system_has_undiscovered and not bodies_lost:
         total_bodies = this.non_body_count + this.system.body_count
         if status.fully_scanned and have_belts:
             this.values_label['text'] += 'Fully Scanned Bonus: {}'.format(
@@ -585,7 +663,7 @@ def calc_system_value() -> tuple[int, int, int, int]:
             min_value_sum += total_bodies * 1000
         max_value_sum += total_bodies * 1000
         min_max_value_sum += total_bodies * 1000
-    if not this.system_was_mapped and this.planet_count > 0:
+    if not this.system_was_mapped and this.planet_count > 0 and not bodies_lost:
         if status.fully_scanned and this.planet_count == this.map_count:
             this.values_label['text'] += 'Fully Mapped Bonus: {}'.format(
                 this.formatter.format_credits(this.planet_count * 10000)) + '\n'
