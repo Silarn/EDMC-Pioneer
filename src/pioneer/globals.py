@@ -89,6 +89,7 @@ class Globals:
         self.show_descriptors: tk.BooleanVar | None = None
         self.show_carrier_values: tk.BooleanVar | None = None
         self.show_map_counter: tk.BooleanVar | None = None
+        self.max_sell_events: tk.IntVar | None = None
         self.use_overlay: tk.BooleanVar | None = None
         self.overlay_color: tk.StringVar | None = None
         self.overlay_anchor_x: tk.IntVar | None = None
