@@ -409,7 +409,6 @@ def edsm_start(event: tk.Event) -> None:
 
 def edsm_end(event: tk.Event) -> None:
     reload_system_data()
-    calc_counts()
     update_display()
 
 
@@ -417,6 +416,7 @@ def calc_system_value() -> tuple[int, int, int, int]:
     global efficiency_bonus
 
     this.overlay_local_text = ''
+    this.body_sale_status = {}
     have_belts = this.belt_count == this.belts_found
     bodies_sold = 0
     bodies_lost = 0
@@ -518,30 +518,105 @@ def calc_system_value() -> tuple[int, int, int, int]:
         ) + '\n'
         if type(body_data) is PlanetData and body_data.is_mapped(this.commander.id):
             efficiency = efficiency_bonus if body_data.was_efficient(this.commander.id) else 1
-            val_text = '{} - {}'.format(
-                this.formatter.format_credits(this.body_values[body_name].get_mapped_values()[1] * efficiency),
-                this.formatter.format_credits(this.body_values[body_name].get_mapped_values()[0] * efficiency)) \
-                if is_range else \
-                '{}'.format(this.formatter.format_credits(
-                    this.body_values[body_name].get_mapped_values()[0] * efficiency
-                ))
-            body_text += 'Current Value (Max): {}{}\n'.format(val_text, ' (Lost)' if lost else '')
-            if body_data.was_efficient(this.commander.id):
-                body_text += '  (Efficient)\n'
-            if this.show_carrier_values.get() and not lost:
-                body_text += 'Carrier Value: {}{} ({} -> carrier)\n'.format(
-                    'Up to ' if is_range else '',
-                    this.formatter.format_credits(
-                        int(this.body_values[body_name].get_mapped_values()[0] * efficiency * .75)),
-                    this.formatter.format_credits(
-                        int(this.body_values[body_name].get_mapped_values()[0] * efficiency * .125))
+            mapped_at = body_data.mapped_at(this.commander.id)
+            map_lost = False
+            map_sold = False
+            death = this.sql_session.scalar(select(Death).where(Death.commander_id == this.commander.id)
+                                             .where(Death.in_ship).where(Death.died_at > mapped_at)
+                                             .order_by(asc(Death.died_at)))
+            resurrection = this.sql_session.scalar(select(Resurrection).where(Resurrection.commander_id == this.commander.id)
+                                                   .where(Resurrection.type.not_in(['escape', 'rejoin', 'handin', 'recover']))
+                                                   .where(Resurrection.resurrected_at > mapped_at)
+                                                   .order_by(asc(Resurrection.resurrected_at)))
+            map_lost_at = None
+            if death and resurrection:
+                map_lost_at = death.died_at if death.died_at < resurrection.resurrected_at else resurrection.resurrected_at
+            elif death:
+                map_lost_at = death.died_at
+            elif resurrection:
+                map_lost_at = resurrection.resurrected_at
+            for sale in sold:
+                if map_lost_at:
+                    if mapped_at < sale.sold_at < map_lost_at:
+                        map_sold = True
+                        # bodies_sold += 1
+                        break
+                if mapped_at < sale.sold_at:
+                    map_sold = True
+                    # bodies_sold += 1
+                    break
+            if map_lost_at and not map_sold:
+                map_lost = True
+                # bodies_lost += 1
+            this.body_sale_status[this.bodies[body_name].get_id()] = (sold, lost, map_sold, map_lost)
+            if map_lost:
+                min_value = this.body_values[body_name].get_base_values()[1] \
+                    if (body_data.get_scan_state(this.commander.id) > 1 and
+                        body_data.is_discovered(this.commander.id)) else 0
+                max_value = this.body_values[body_name].get_base_values()[0] \
+                    if (body_data.get_scan_state(this.commander.id) > 1 and
+                        body_data.is_discovered(this.commander.id)) else 0
+                min_mapped_value = int(this.body_values[body_name].get_mapped_values()[1] * efficiency_bonus)
+                max_mapped_value = int(this.body_values[body_name].get_mapped_values()[0] * efficiency_bonus)
+                val_text = '{} - {}'.format(
+                    this.formatter.format_credits(min_value), this.formatter.format_credits(max_value)
+                ) if is_range else '{}'.format(this.formatter.format_credits(max_value))
+                lost_val_text = '{} - {}'.format(
+                    this.formatter.format_credits(min_mapped_value-min_value),
+                    this.formatter.format_credits(max_mapped_value-max_value)
+                ) if is_range else '{}'.format(
+                    this.formatter.format_credits(max_mapped_value-max_value)
                 )
-            if not lost:
+                max_val_text = '{} - {}'.format(
+                    this.formatter.format_credits(min_mapped_value),
+                    this.formatter.format_credits(max_mapped_value)
+                ) if is_range else '{}'.format(
+                    this.formatter.format_credits(max_mapped_value)
+                )
+                body_text += 'Current Value: {}{}\n'.format(val_text, ' (Lost)' if lost else '')
+                body_text += '  Mapped{}\N{COLLISION SYMBOL}\n'.format(
+                    ' (Efficient)' if body_data.was_efficient(this.commander.id) else ''
+                )
+                body_text += '  Lost: {}\n'.format(lost_val_text)
+                if this.show_carrier_values.get() and not lost:
+                    body_text += 'Carrier Value: {}{} ({} -> carrier)\n'.format(
+                        'Up to ' if is_range else '',
+                        this.formatter.format_credits(int(max_value * .75)),
+                        this.formatter.format_credits(int(max_value * .125))
+                    )
+                body_text += 'Max Value: {}\n'.format(max_val_text)
+                if not lost:
+                    max_value_sum += max_mapped_value
+                    min_max_value_sum += min_mapped_value
+                    value_sum += max_value
+                    min_value_sum += min_value
+            else:
+                val_text = '{} - {}'.format(
+                    this.formatter.format_credits(this.body_values[body_name].get_mapped_values()[1] * efficiency),
+                    this.formatter.format_credits(this.body_values[body_name].get_mapped_values()[0] * efficiency)) \
+                    if is_range else \
+                    '{}'.format(this.formatter.format_credits(
+                        this.body_values[body_name].get_mapped_values()[0] * efficiency
+                    ))
+                body_text += 'Current Value (Max): {}{}\n'.format(val_text, ' (Lost)' if lost else '')
+                body_text += '  Mapped{}{}\n'.format(
+                    ' (Efficient)' if body_data.was_efficient(this.commander.id) else '',
+                    ' \N{HEAVY DOLLAR SIGN}' if body_sold else ''
+                )
+                if this.show_carrier_values.get() and not lost:
+                    body_text += 'Carrier Value: {}{} ({} -> carrier)\n'.format(
+                        'Up to ' if is_range else '',
+                        this.formatter.format_credits(
+                            int(this.body_values[body_name].get_mapped_values()[0] * efficiency * .75)),
+                        this.formatter.format_credits(
+                            int(this.body_values[body_name].get_mapped_values()[0] * efficiency * .125))
+                    )
                 max_value_sum += this.body_values[body_name].get_mapped_values()[0] * efficiency
                 min_max_value_sum += this.body_values[body_name].get_mapped_values()[1] * efficiency
                 value_sum += this.body_values[body_name].get_mapped_values()[0] * efficiency
                 min_value_sum += this.body_values[body_name].get_mapped_values()[1] * efficiency
         elif type(body_data) is PlanetData:
+            this.body_sale_status[this.bodies[body_name].get_id()] = (sold, lost, False, False)
             min_value = this.body_values[body_name].get_base_values()[1] \
                 if (body_data.get_scan_state(this.commander.id) > 1 and
                     body_data.is_discovered(this.commander.id)) else 0
@@ -573,6 +648,7 @@ def calc_system_value() -> tuple[int, int, int, int]:
                 value_sum += max_value
                 min_value_sum += min_value
         else:
+            this.body_sale_status[this.bodies[body_name].get_id()] = (sold, lost, False, False)
             min_value = this.body_values[body_name].get_base_values()[1] \
                 if (body_data.get_scan_state(this.commander.id) > 1
                     and body_data.is_discovered(this.commander.id)) else 0
@@ -794,6 +870,7 @@ def reset() -> None:
     this.planet_count = 0
     this.map_count = 0
     this.scans = set()
+    this.body_sale_status = {}
 
 
 def journal_entry(cmdr: str, is_beta: bool, system: str, station: str,
@@ -1003,7 +1080,8 @@ def calc_counts() -> None:
     for body in this.bodies.values():
         if type(body) is PlanetData:
             this.planet_count += 1
-            if body.is_mapped(this.commander.id):
+            if body.is_mapped(this.commander.id) and (body.get_id() in this.body_sale_status
+                                                      and not this.body_sale_status[body.get_id()][3]):
                 this.map_count += 1
 
     if len(this.bodies) > this.system.body_count and not get_system_status().honked:
@@ -1296,7 +1374,8 @@ def update_display() -> None:
         )
         if type(body_data) is PlanetData
            and this.body_values[body_name].get_mapped_values()[0] * efficiency_bonus >= this.min_value.get()
-           and not body_data.is_mapped(this.commander.id)
+           and (not body_data.is_mapped(this.commander.id) or
+                (body_data.get_id() in this.body_sale_status and this.body_sale_status[body_data.get_id()][3]))
     ]
     exobio_body_names = [
         '%s (%d)' % (body_name, body_data.get_bio_signals())
@@ -1313,12 +1392,15 @@ def update_display() -> None:
         # template: NAME (VALUE, DIST), …
         body_value = int(this.body_values[body_name].get_mapped_values()[0] * efficiency_bonus)
         body_distance = this.bodies[body_name].get_distance()
+        lost = True if (this.bodies[body_name].get_id() in this.body_sale_status and
+                        this.body_sale_status[this.bodies[body_name].get_id()][3]) else False
         if body_value >= this.min_value.get():
-            return '%s%s (max %s, %s)' % \
+            return '%s%s (max %s, %s)%s' % \
                 (body_name,
                  get_body_shorthand(this.bodies[body_name], this.commander.id),
                  this.formatter.format_credits(body_value, False),
-                 this.formatter.format_ls(body_distance))
+                 this.formatter.format_ls(body_distance),
+                 '\N{COLLISION SYMBOL}' if lost else '')
         else:
             return '%s'
 
@@ -1368,16 +1450,7 @@ def update_display() -> None:
             text += '\n'
 
         body_count = this.system.body_count if system_status.honked else '?'
-        scanned_bodies = 0
-        for body in this.bodies.values():
-            if body.get_scan_state(this.commander.id) >= 1:
-                scanned_bodies += 1
-        main_star = get_main_star(this.system, this.sql_session)
-        if main_star:
-            main_star_data = StarData.from_journal(this.system, main_star.name, main_star.body_id, this.sql_session)
-            if main_star_data.get_scan_state(this.commander.id) >= 1:
-                scanned_bodies += 1
-        text += f'B#: {len(this.bodies) + 1}/{scanned_bodies}/{body_count} NB#: {this.system.non_body_count}'
+        text += f'B#: {len(this.bodies) + 1}/{body_count} NB#: {this.system.non_body_count}'
         if this.belt_count:
             text += f' (Belts: {this.belts_found}/{this.belt_count})'
         if this.show_map_counter.get() and this.planet_count > 0 and this.map_count < this.planet_count:
@@ -1387,7 +1460,6 @@ def update_display() -> None:
     if not this.display_hidden:
         this.label['text'] = text
 
-    total_value, min_total_value, max_value, min_max_value = calc_system_value()
     if total_value != min_total_value:
         this.total_label['text'] = 'Estimated System Value: {} to {}'.format(
             this.formatter.format_credits(min_total_value), this.formatter.format_credits(total_value))
@@ -1420,8 +1492,8 @@ def update_display() -> None:
 
     if this.use_overlay.get() and this.overlay.available():
         if overlay_should_display():
-            if this.label['text']:
-                overlay_text = this.label['text'] + ('\n\n' + this.overlay_local_text if this.overlay_local_text else '') + '\n' + this.total_label['text']
+            if text:
+                overlay_text = text + ('\n\n' + this.overlay_local_text if this.overlay_local_text else '') + '\n' + this.total_label['text']
                 this.overlay.display("pioneer_text", overlay_text,
                                      x=this.overlay_anchor_x.get(), y=this.overlay_anchor_y.get(),
                                      color=this.overlay_color.get())
