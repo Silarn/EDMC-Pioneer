@@ -130,7 +130,9 @@ def plugin_app(parent: tk.Frame) -> tk.Frame:
             register_journal_callbacks(this.frame, 'pioneer', journal_start, journal_update, journal_end)
         register_edsm_callbacks(this.frame,'pioneer', edsm_start, edsm_end)
         this.label = tk.Label(this.frame)
-        this.label.grid(row=0, column=0, columnspan=2, sticky=tk.N)
+        this.label.grid(row=0, column=0, sticky=tk.N)
+        this.view_button = tk.Button(this.frame, text='🔼', command=toggle_view)
+        this.view_button.grid(row=0, column=1, sticky=tk.N)
         this.scroll_canvas = tk.Canvas(this.frame, height=100, highlightthickness=0)
         this.scrollbar = ttk.Scrollbar(this.frame, orient='vertical', command=this.scroll_canvas.yview)
         this.scrollable_frame = ttk.Frame(this.scroll_canvas)
@@ -1266,20 +1268,24 @@ def update_display() -> None:
         else:
             this.edsm_button.grid()
     system_status = get_system_status()
-    if not system_status:
-        this.label['text'] = 'Pioneer: Awaiting Data'
-        this.scroll_canvas.grid_remove()
-        this.scrollbar.grid_remove()
-        this.total_label.grid_remove()
-        return
-    else:
-        if this.show_details.get():
-            this.scroll_canvas.grid()
-            this.scrollbar.grid()
-        else:
+    if not this.display_hidden:
+        if not system_status:
+            this.label['text'] = 'Pioneer: Awaiting Data'
             this.scroll_canvas.grid_remove()
             this.scrollbar.grid_remove()
-        this.total_label.grid()
+            this.total_label.grid_remove()
+            return
+        else:
+            if this.show_details.get():
+                this.scroll_canvas.grid()
+                this.scrollbar.grid()
+            else:
+                this.scroll_canvas.grid_remove()
+                this.scrollbar.grid_remove()
+            this.total_label.grid()
+
+    total_value, min_total_value, max_value, min_max_value = calc_system_value()
+    calc_counts()
 
     valuable_body_names = [
         body_name
@@ -1316,6 +1322,7 @@ def update_display() -> None:
         else:
             return '%s'
 
+    text = ''
     if this.bodies or this.main_star_name:
         all_belts_found = this.belt_count == this.belts_found
         if system_status.fully_scanned and all_belts_found and len(this.bodies) + 1 >= this.system.body_count:
@@ -1375,9 +1382,10 @@ def update_display() -> None:
             text += f' (Belts: {this.belts_found}/{this.belt_count})'
         if this.show_map_counter.get() and this.planet_count > 0 and this.map_count < this.planet_count:
             text += f' (Mapped: {this.map_count}/{this.planet_count})'
-        this.label['text'] = text
     else:
-        this.label['text'] = 'Pioneer: Nothing Scanned'
+        text = 'Pioneer: Nothing Scanned'
+    if not this.display_hidden:
+        this.label['text'] = text
 
     total_value, min_total_value, max_value, min_max_value = calc_system_value()
     if total_value != min_total_value:
@@ -1424,18 +1432,37 @@ def update_display() -> None:
         else:
             this.overlay.clear("pioneer_text")
 
-    if this.show_details.get():
-        this.scroll_canvas.grid()
-        this.scrollbar.grid()
-    else:
-        this.scroll_canvas.grid_remove()
-        this.scrollbar.grid_remove()
+    if not this.display_hidden:
+        if this.show_details.get():
+            this.scroll_canvas.grid()
+            this.scrollbar.grid()
+        else:
+            this.scroll_canvas.grid_remove()
+            this.scrollbar.grid_remove()
 
 
 def overlay_should_display() -> bool:
     if not this.analysis_mode or not this.in_flight or this.gui_focus not in [0, 2, 9, 10] or this.fsd_jump:
         return False
     return True
+
+
+def toggle_view():
+    this.display_hidden = not this.display_hidden
+    if this.display_hidden:
+        this.view_button['text'] = '🔽'
+    else:
+        this.view_button['text'] = '🔼'
+
+    if this.display_hidden:
+        this.label['text'] = 'Pioneer (Hidden)'
+        this.scroll_canvas.grid_remove()
+        this.scrollbar.grid_remove()
+        this.total_label.grid_remove()
+        this.edsm_button.grid_remove()
+    else:
+        this.total_label.grid()
+    update_display()
 
 
 def bind_mousewheel(event: tk.Event) -> None:

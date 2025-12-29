@@ -41,6 +41,8 @@ class Globals:
         self.total_label: tk.Label | None = None
         self.update_button: HyperlinkLabel | None = None
         self.journal_label: tk.Label | None = None
+        self.view_button: tk.Button | None = None
+        self.display_hidden: bool = False
 
         # DB
         self.sql_session: Session | None = None
