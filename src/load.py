@@ -470,33 +470,34 @@ def calc_system_value() -> tuple[int, int, int, int]:
         scanned_at = body_data.scanned_at(this.commander.id)
         lost = False
         body_sold = False
-        death = this.sql_session.scalar(select(Death).where(Death.commander_id == this.commander.id)
-                                         .where(Death.in_ship).where(Death.died_at > scanned_at)
-                                         .order_by(asc(Death.died_at)))
-        resurrection = this.sql_session.scalar(select(Resurrection).where(Resurrection.commander_id == this.commander.id)
-                                               .where(Resurrection.type.not_in(['escape', 'rejoin', 'handin', 'recover']))
-                                               .where(Resurrection.resurrected_at > scanned_at)
-                                               .order_by(asc(Resurrection.resurrected_at)))
-        lost_at = None
-        if death and resurrection:
-            lost_at = death.died_at if death.died_at < resurrection.resurrected_at else resurrection.resurrected_at
-        elif death:
-            lost_at = death.died_at
-        elif resurrection:
-            lost_at = resurrection.resurrected_at
-        for sale in sold:
-            if lost_at:
-                if scanned_at < sale.sold_at < lost_at:
+        if scanned_at:
+            death = this.sql_session.scalar(select(Death).where(Death.commander_id == this.commander.id)
+                                             .where(Death.in_ship).where(Death.died_at > scanned_at)
+                                             .order_by(asc(Death.died_at)))
+            resurrection = this.sql_session.scalar(select(Resurrection).where(Resurrection.commander_id == this.commander.id)
+                                                   .where(Resurrection.type.not_in(['escape', 'rejoin', 'handin', 'recover']))
+                                                   .where(Resurrection.resurrected_at > scanned_at)
+                                                   .order_by(asc(Resurrection.resurrected_at)))
+            lost_at = None
+            if death and resurrection:
+                lost_at = death.died_at if death.died_at < resurrection.resurrected_at else resurrection.resurrected_at
+            elif death:
+                lost_at = death.died_at
+            elif resurrection:
+                lost_at = resurrection.resurrected_at
+            for sale in sold:
+                if lost_at:
+                    if scanned_at < sale.sold_at < lost_at:
+                        body_sold = True
+                        bodies_sold += 1
+                        break
+                if scanned_at < sale.sold_at:
                     body_sold = True
                     bodies_sold += 1
                     break
-            if scanned_at < sale.sold_at:
-                body_sold = True
-                bodies_sold += 1
-                break
-        if lost_at and not body_sold:
-            lost = True
-            bodies_lost += 1
+            if lost_at and not body_sold:
+                lost = True
+                bodies_lost += 1
 
         body_text = '{} - {}{}{}{}{}{}{}{}{}:'.format(
             body_name,
