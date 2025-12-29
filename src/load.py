@@ -44,6 +44,7 @@ from pioneer.data import BodyValueData
 from pioneer.globals import pioneer_globals
 from pioneer.status_flags import StatusFlags
 from pioneer.util import get_star_label, get_body_shorthand
+from pioneer.tooltip import Tooltip
 
 efficiency_bonus = 1.25
 this = pioneer_globals
@@ -275,6 +276,18 @@ def plugin_prefs(parent: ttk.Notebook, cmdr: str, is_beta: bool) -> nb.Frame:
         text='Show mapped body count',
         variable=this.show_map_counter
     ).grid(row=32, columnspan=3, padx=x_button_padding, sticky=tk.W)
+    sell_cutoff_label = nb.Label(frame, text='Sell event cutoff: (?)')
+    sell_cutoff_label.grid(row=33, column=0, padx=x_padding, sticky=tk.W)
+
+    nb.EntryMenu(frame, textvariable=this.max_sell_events,
+             validate='all', validatecommand=(vcmd, '%P')).grid(row=33, column=1, sticky=tk.W)
+    Tooltip(
+        sell_cutoff_label,
+        text='Number of data sales before scanned systems are no longer considered unsold.\n\n' +
+        'This serves as a backup if journal events are incomplete, which can cause systems to remain flagged as unsold.\n\n' +
+        'The plugin will only consider system scans after that date. Ship loss will still apply.',
+        waittime=1000
+    )
 
     # Overlay settings
     ttk.Separator(frame).grid(row=35, columnspan=3, pady=y_padding * 2, sticky=tk.EW)
@@ -332,6 +345,7 @@ def prefs_changed(cmdr: str, is_beta: bool) -> None:
     config.set('pioneer_star_descriptors', this.show_descriptors.get())
     config.set('pioneer_carrier_values', this.show_carrier_values.get())
     config.set('pioneer_map_counter', this.show_map_counter.get())
+    config.set('pioneer_max_sell_events', this.max_sell_events.get())
     config.set('pioneer_overlay', this.use_overlay.get())
     config.set('pioneer_overlay_color', this.overlay_color.get())
     config.set('pioneer_overlay_anchor_x', this.overlay_anchor_x.get())
@@ -348,6 +362,7 @@ def parse_config() -> None:
     this.show_descriptors = tk.BooleanVar(value=config.get_bool(key='pioneer_star_descriptors', default=False))
     this.show_carrier_values = tk.BooleanVar(value=config.get_bool(key='pioneer_carrier_values', default=False))
     this.show_map_counter = tk.BooleanVar(value=config.get_bool(key='pioneer_map_counter', default=False))
+    this.max_sell_events = tk.IntVar(value=config.get_int(key='pioneer_max_sell_events', default=5))
     this.use_overlay = tk.BooleanVar(value=config.get_bool(key='pioneer_overlay', default=False))
     this.overlay_color = tk.StringVar(value=config.get_str(key='pioneer_overlay_color', default='#ffffff'))
     this.overlay_anchor_x = tk.IntVar(value=config.get_int(key='pioneer_overlay_anchor_x', default=1000))
@@ -1217,9 +1232,10 @@ def get_unsold_data() -> str:
                                                                .where(Resurrection.type.not_in(['escape', 'rejoin', 'handin', 'recover']))
                                                                .order_by(desc(Resurrection.resurrected_at)))
         recent_sales: list[SystemSale] = this.sql_session.scalars(
-            select(SystemSale).where(SystemSale.commander_id == this.commander.id).order_by(desc(SystemSale.sold_at)).limit(5)
+            select(SystemSale).where(SystemSale.commander_id == this.commander.id).order_by(desc(SystemSale.sold_at))
+            .limit(this.max_sell_events.get())
         ).all()
-        data_cutoff_time = recent_sales[-1].sold_at if len(recent_sales) == 5 else datetime.min
+        data_cutoff_time = recent_sales[-1].sold_at if len(recent_sales) == this.max_sell_events.get() else datetime.min
 
         last_data_loss: datetime | None = None
         if last_death or last_resurrect:
