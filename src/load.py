@@ -448,33 +448,34 @@ def calc_system_value() -> tuple[int, int, int, int]:
     if main_star:
         main_star_status = this.sql_session.scalar(select(StarStatus).where(StarStatus.commander_id == this.commander.id)
                                                    .where(StarStatus.star_id == main_star.id))
-        death = this.sql_session.scalar(select(Death).where(Death.commander_id == this.commander.id)
-                                         .where(Death.in_ship).where(Death.died_at > main_star_status.scanned_at)
-                                         .order_by(asc(Death.died_at)))
-        resurrection = this.sql_session.scalar(select(Resurrection).where(Resurrection.commander_id == this.commander.id)
-                                               .where(Resurrection.type.not_in(['escape', 'rejoin', 'handin', 'recover']))
-                                               .where(Resurrection.resurrected_at > main_star_status.scanned_at)
-                                               .order_by(asc(Resurrection.resurrected_at)))
-        lost_at = None
-        if death and resurrection:
-            lost_at = death.died_at if death.died_at < resurrection.resurrected_at else resurrection.resurrected_at
-        elif death:
-            lost_at = death.died_at
-        elif resurrection:
-            lost_at = resurrection.resurrected_at
-        for sale in sold:
-            if lost_at:
-                if main_star_status.scanned_at < sale.sold_at < lost_at:
+        if main_star_status and main_star_status.scanned_at:
+            death = this.sql_session.scalar(select(Death).where(Death.commander_id == this.commander.id)
+                                             .where(Death.in_ship).where(Death.died_at > main_star_status.scanned_at)
+                                             .order_by(asc(Death.died_at)))
+            resurrection = this.sql_session.scalar(select(Resurrection).where(Resurrection.commander_id == this.commander.id)
+                                                   .where(Resurrection.type.not_in(['escape', 'rejoin', 'handin', 'recover']))
+                                                   .where(Resurrection.resurrected_at > main_star_status.scanned_at)
+                                                   .order_by(asc(Resurrection.resurrected_at)))
+            lost_at = None
+            if death and resurrection:
+                lost_at = death.died_at if death.died_at < resurrection.resurrected_at else resurrection.resurrected_at
+            elif death:
+                lost_at = death.died_at
+            elif resurrection:
+                lost_at = resurrection.resurrected_at
+            for sale in sold:
+                if lost_at:
+                    if main_star_status.scanned_at < sale.sold_at < lost_at:
+                        main_star_sold = True
+                        bodies_sold += 1
+                        break
+                if main_star_status.scanned_at < sale.sold_at:
                     main_star_sold = True
                     bodies_sold += 1
                     break
-            if main_star_status.scanned_at < sale.sold_at:
-                main_star_sold = True
-                bodies_sold += 1
-                break
-        if lost_at and not main_star_sold:
-            main_star_lost = True
-            bodies_lost += 1
+            if lost_at and not main_star_sold:
+                main_star_lost = True
+                bodies_lost += 1
     max_value_sum = this.main_star_value if not main_star_lost else 0
     min_max_value_sum = this.main_star_value if not main_star_lost else 0
     value_sum = this.main_star_value if not main_star_lost else 0
