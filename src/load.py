@@ -958,8 +958,11 @@ def journal_entry(cmdr: str, is_beta: bool, system: str, station: str,
 
     this.sql_session.commit()
 
-    if system_changed:
-        this.scroll_canvas.yview_moveto(0.0)
+    if system_changed and not this.display_hidden and this.show_details.get():
+        try:
+            this.scroll_canvas.yview_moveto(0.0)
+        except tk.TclError as ex:
+            logger.debug('Couldn\'t reset the scroll pane.', exc_info=ex)
 
     if this.system:
         calc_counts()
