@@ -168,6 +168,7 @@ def plugin_app(parent: tk.Frame) -> tk.Frame:
             this.edsm_button = tk.Label(this.frame, text='Fetch EDSM Data', fg='white', cursor='hand2')
             this.edsm_button.grid(row=3, columnspan=2, sticky=tk.EW)
             this.edsm_button.bind('<Button-1>', lambda e: edsm_fetch())
+        this.started = True
         update_display()
         theme.register(this.values_label)
     return this.frame
@@ -1359,6 +1360,9 @@ def process_discovery() -> None:
 
 def update_display() -> None:
     global efficiency_bonus
+
+    if not this.started:
+        return
 
     if not len(sorted(plug.PLUGINS, key=lambda item: item.name == 'BioScan')):  # type: list[plug.Plugin]
         if this.fetched_edsm or not this.system:

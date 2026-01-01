@@ -27,6 +27,7 @@ class Globals:
         self.VERSION = semantic_version.Version(pioneer.const.plugin_version)
         self.formatter = Formatter()
         self.overlay = overlay.Overlay()
+        self.started = False
 
         self.parent: tk.Frame | None = None
         self.frame: tk.Frame | None = None
