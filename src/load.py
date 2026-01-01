@@ -913,8 +913,6 @@ def journal_entry(cmdr: str, is_beta: bool, system: str, station: str,
     if not state['StarPos']:
         return ''
 
-    this.system_population = state.get('SystemPopulation', 0)
-
     if cmdr and (not this.commander or this.commander.name != cmdr):
         commander = this.sql_session.scalar(select(Commander).where(Commander.name == cmdr))
         if not commander:
