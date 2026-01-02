@@ -1556,7 +1556,8 @@ def toggle_view():
         this.scroll_canvas.grid_remove()
         this.scrollbar.grid_remove()
         this.total_label.grid_remove()
-        this.edsm_button.grid_remove()
+        if this.edsm_button:
+            this.edsm_button.grid_remove()
     else:
         this.total_label.grid()
     update_display()
