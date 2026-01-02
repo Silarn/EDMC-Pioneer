@@ -4,7 +4,10 @@ import locale
 class Formatter:
 
     def __init__(self, shorten=True):
-        locale.setlocale(locale.LC_ALL, '')
+        try:
+            locale.setlocale(locale.LC_ALL, '')
+        except locale.Error:
+            locale.setlocale(locale.LC_ALL, 'C')
         self.shorten: bool = shorten
 
     def set_shorten(self, value: bool):
