@@ -39,7 +39,9 @@ class Globals:
         self.edsm_button: tk.Label | None = None
         self.edsm_failed: tk.Label | None = None
         self.values_label: tk.Label | None = None
+        self.values_label_text = tk.StringVar()
         self.total_label: tk.Label | None = None
+        self.total_label_text = tk.StringVar()
         self.update_button: HyperlinkLabel | None = None
         self.journal_label: tk.Label | None = None
         self.view_button: tk.Button | None = None

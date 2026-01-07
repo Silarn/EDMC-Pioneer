@@ -147,12 +147,13 @@ def plugin_app(parent: tk.Frame) -> tk.Frame:
         this.scroll_canvas.bind('<Leave>', unbind_mousewheel)
         this.scroll_canvas.create_window((0, 0), window=this.scrollable_frame, anchor='nw')
         this.scroll_canvas.configure(yscrollcommand=this.scrollbar.set)
-        this.values_label = ttk.Label(this.scrollable_frame, wraplength=360, justify=tk.LEFT)
+        this.values_label = ttk.Label(this.scrollable_frame, textvariable=this.values_label_text,
+                                      wraplength=360, justify=tk.LEFT)
         this.values_label.pack(fill=tk.BOTH, side=tk.LEFT)
         this.scroll_canvas.grid(row=1, column=0, sticky=tk.EW)
         this.scroll_canvas.grid_rowconfigure(1, weight=0)
         this.scrollbar.grid(row=1, column=1, sticky=tk.NSEW)
-        this.total_label = tk.Label(this.frame)
+        this.total_label = tk.Label(this.frame, textvariable=this.total_label_text)
         this.total_label.grid(row=2, column=0, columnspan=2, sticky=tk.N)
         this.journal_label = tk.Label(this.frame, text='Journal Parsing')
         update = version_check()
@@ -187,9 +188,9 @@ def export_text() -> None:
     filename = re.sub(r'[^\w\s-]', '', this.system.name)
     filename = re.sub(r'[-\s]+', '-', filename).strip('-_')
     filename += '.txt'
-    file = open(export_path / filename, 'w')
-    file.write(this.values_label['text'] + '\n')
-    file.write(this.total_label['text'])
+    file = open(export_path / filename, 'w', encoding='utf-8')
+    file.write(this.values_label_text.get() + '\n')
+    file.write(this.total_label_text.get())
     file.close()
 
 
@@ -437,7 +438,7 @@ def calc_system_value() -> tuple[int, int, int, int]:
     bodies_sold = 0
     bodies_lost = 0
     if not this.main_star_name and not len(this.bodies):
-        this.values_label['text'] = 'No scans detected.\nHonk or check nav beacon data.'
+        this.values_label_text.set('No scans detected.\nHonk or check nav beacon data.')
         return 0, 0, 0, 0
     honk_sum, min_honk_sum = 0, 0
     bodies_text = ''
@@ -742,17 +743,17 @@ def calc_system_value() -> tuple[int, int, int, int]:
                 this.formatter.format_credits(int((this.main_star_value + honk_sum) * .75)),
                 this.formatter.format_credits(int((this.main_star_value + honk_sum) * .125))
             )
-        this.values_label['text'] = star_text
+        values_label_text = star_text
         this.overlay_local_text = star_text + this.overlay_local_text
     else:
-        this.values_label['text'] = 'No main star info\nCheck for nav beacon data\n'
-    this.values_label['text'] += '------------------' + '\n'
-    this.values_label['text'] += bodies_text
+        values_label_text = 'No main star info\nCheck for nav beacon data\n'
+    values_label_text += '------------------' + '\n'
+    values_label_text += bodies_text
     status = get_system_status()
     if not this.system_was_scanned and not this.is_nav_beacon and not this.system_has_undiscovered and not bodies_lost:
         total_bodies = this.non_body_count + this.system.body_count
         if status.fully_scanned and have_belts:
-            this.values_label['text'] += 'Fully Scanned Bonus: {}'.format(
+            values_label_text += 'Fully Scanned Bonus: {}'.format(
                 this.formatter.format_credits(total_bodies * 1000)
             ) + '\n'
             value_sum += total_bodies * 1000
@@ -761,7 +762,7 @@ def calc_system_value() -> tuple[int, int, int, int]:
         min_max_value_sum += total_bodies * 1000
     if not this.system_was_mapped and this.planet_count > 0 and not bodies_lost:
         if status.fully_scanned and this.planet_count == this.map_count:
-            this.values_label['text'] += 'Fully Mapped Bonus: {}'.format(
+            values_label_text += 'Fully Mapped Bonus: {}'.format(
                 this.formatter.format_credits(this.planet_count * 10000)) + '\n'
             value_sum += this.planet_count * 10000
             min_value_sum += this.planet_count * 10000
@@ -773,6 +774,7 @@ def calc_system_value() -> tuple[int, int, int, int]:
     full_width = this.label.winfo_width() - this.scrollbar.winfo_width()
     final_width = label_width if label_width > full_width else full_width
     this.scroll_canvas.configure(width=final_width)
+    this.values_label_text.set(values_label_text)
     return value_sum, min_value_sum, max_value_sum, min_max_value_sum
 
 
@@ -1486,39 +1488,41 @@ def update_display() -> None:
         this.label['text'] = text
 
     if total_value != min_total_value:
-        this.total_label['text'] = 'Estimated System Value: {} to {}'.format(
+        total_label_text = 'Estimated System Value: {} to {}'.format(
             this.formatter.format_credits(min_total_value), this.formatter.format_credits(total_value))
         if this.show_carrier_values.get():
-            this.total_label['text'] += '\nCarrier Value: Up to {} (+{} -> carrier)'.format(
+            total_label_text += '\nCarrier Value: Up to {} (+{} -> carrier)'.format(
                 this.formatter.format_credits(int(total_value * .75)),
                 this.formatter.format_credits(int(total_value * .125)))
-        this.total_label['text'] += '\nMaximum System Value: {} to {}'.format(
+        total_label_text += '\nMaximum System Value: {} to {}'.format(
             this.formatter.format_credits(min_max_value), this.formatter.format_credits(max_value))
     elif total_value != max_value:
-        this.total_label['text'] = 'Estimated System Value: {}'.format(
+        total_label_text = 'Estimated System Value: {}'.format(
             this.formatter.format_credits(total_value) if total_value > 0 else 'N/A')
         if this.show_carrier_values.get() and total_value > 0:
-            this.total_label['text'] += '\nCarrier Value: {} (+{} -> carrier)'.format(
+            total_label_text += '\nCarrier Value: {} (+{} -> carrier)'.format(
                 this.formatter.format_credits(int(total_value * .75)),
                 this.formatter.format_credits(int(total_value * .125)))
-        this.total_label['text'] += '\nMaximum System Value: {}'.format(
+        total_label_text += '\nMaximum System Value: {}'.format(
             this.formatter.format_credits(max_value) if max_value > 0 else 'N/A')
     else:
-        this.total_label['text'] = 'Estimated System Value (Max): {}'.format(
+        total_label_text = 'Estimated System Value (Max): {}'.format(
             this.formatter.format_credits(total_value) if total_value > 0 else 'N/A')
         if this.show_carrier_values.get() and total_value > 0:
-            this.total_label['text'] += '\nCarrier Value: {} (+{} -> carrier)'.format(
+            total_label_text += '\nCarrier Value: {} (+{} -> carrier)'.format(
                 this.formatter.format_credits(int(total_value * .75)),
                 this.formatter.format_credits(int(total_value * .125)))
 
     unsold_text = get_unsold_data()
     if unsold_text:
-        this.total_label['text'] += f'\n{unsold_text}'
+        total_label_text += f'\n{unsold_text}'
+
+    this.total_label_text.set(total_label_text)
 
     if this.use_overlay.get() and this.overlay.available():
         if overlay_should_display():
             if text:
-                overlay_text = text + ('\n\n' + this.overlay_local_text if this.overlay_local_text else '') + '\n' + this.total_label['text']
+                overlay_text = text + ('\n\n' + this.overlay_local_text if this.overlay_local_text else '') + '\n' + total_label_text
                 this.overlay.display("pioneer_text", overlay_text,
                                      x=this.overlay_anchor_x.get(), y=this.overlay_anchor_y.get(),
                                      color=this.overlay_color.get())
