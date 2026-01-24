@@ -46,6 +46,9 @@ from pioneer.status_flags import StatusFlags
 from pioneer.util import get_star_label, get_body_shorthand
 from pioneer.tooltip import Tooltip
 
+
+__version__ = pioneer.const.plugin_version
+
 efficiency_bonus = 1.25
 this = pioneer_globals
 logger = get_plugin_logger(this.NAME)
