@@ -94,7 +94,7 @@ def version_check() -> str:
         data = req.json()
         if req.status_code != requests.codes.ok:
             raise requests.RequestException
-    except requests.RequestException | requests.JSONDecodeError:
+    except (requests.RequestException, requests.JSONDecodeError):
         print_exc()
         return ''
 
