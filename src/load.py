@@ -94,8 +94,8 @@ def version_check() -> str:
         data = req.json()
         if req.status_code != requests.codes.ok:
             raise requests.RequestException
-    except (requests.RequestException, requests.JSONDecodeError):
-        print_exc()
+    except (requests.RequestException, requests.JSONDecodeError) as ex:
+        logger.error('Failed to parse GitHub release info', exc_info=ex)
         return ''
 
     version = semantic_version.Version(data['tag_name'][1:])
