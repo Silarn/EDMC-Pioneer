@@ -953,7 +953,7 @@ def journal_entry(cmdr: str, is_beta: bool, system: str, station: str,
                 update_display()
         case 'Disembark':
             if entry.get('OnPlanet', False):
-                body_short_name = get_body_name(entry['BodyName'])
+                body_short_name = get_body_name(entry['Body'])
                 if body_short_name in this.bodies:
                     this.bodies[body_short_name].refresh()
                 else:
